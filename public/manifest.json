@@ -1,0 +1,22 @@
+{
+  "name": "eBay在庫管理ツール",
+  "short_name": "eBay在庫管理",
+  "description": "eBayセラー向けの仕入れ・出品・販売・発送・利益管理ツール",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#3665F3",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

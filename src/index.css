@@ -1,0 +1,39 @@
+/* PC/スマホでの表示切り替え（ブレークポイント: 768px） */
+@media (max-width: 768px) {
+  .pc-table {
+    display: none !important;
+  }
+  .sp-cards {
+    display: block !important;
+  }
+}
+@media (min-width: 769px) {
+  .sp-cards {
+    display: none !important;
+  }
+}
+
+/* テーブル行ホバー（タッチデバイスでは効果なし、PC操作時のみ視覚効果） */
+tr:hover {
+  background: #f7f8fa;
+}
+
+/* スクロールバーの見た目を控えめに */
+::-webkit-scrollbar {
+  height: 6px;
+  width: 6px;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e0;
+  border-radius: 3px;
+}
+
+/* タップ時の青いハイライトを抑制（ネイティブアプリらしい挙動に） */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  margin: 0;
+  -webkit-font-smoothing: antialiased;
+}

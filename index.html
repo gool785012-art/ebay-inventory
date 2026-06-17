@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
+    <meta name="theme-color" content="#3665F3" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="icon" href="/icon-192.png" />
+    <link rel="apple-touch-icon" href="/icon-192.png" />
+    <title>eBay在庫管理ツール</title>
+    <style>
+      html, body, #root {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        -webkit-tap-highlight-color: transparent;
+        -webkit-touch-callout: none;
+      }
+      /* ノッチ・セーフエリア対応 */
+      body {
+        padding-top: env(safe-area-inset-top);
+        padding-bottom: env(safe-area-inset-bottom);
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
