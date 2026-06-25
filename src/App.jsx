@@ -144,8 +144,16 @@ function fromCSV(text) {
       else { cur += c; }
     }
     vals.push(cur);
+    const BOOL_FIELDS = ["taxRefund"];
+    const NUM_FIELDS  = ["purchasePrice","domesticShipping","repairCost","listPrice","salePrice",
+                         "rate","overseaShipping","tariff","ebayFeeRate","payoneerFeeRate","adFeeRate"];
     const obj = { id: genId() };
-    headers.forEach((h, i) => { obj[h] = vals[i] ?? ""; });
+    headers.forEach((h, i) => {
+      const v = vals[i] ?? "";
+      if (BOOL_FIELDS.includes(h)) obj[h] = v === "true";
+      else if (NUM_FIELDS.includes(h)) obj[h] = v === "" ? "" : Number(v);
+      else obj[h] = v;
+    });
     if (!obj.id || obj.id === "") obj.id = genId();
     return obj;
   });
@@ -160,9 +168,10 @@ async function storageSet(key, value) {
   localStorage.setItem(key, value);
 }
 
-// CSVファイルのダウンロード
+// CSVファイルのダウンロード（UTF-8 BOM付き → Excelで文字化けしない）
 async function exportCSVFile(csvText, filename) {
-  const blob = new Blob([csvText], { type:"text/csv;charset=utf-8;" });
+  const bom = "﻿";
+  const blob = new Blob([bom + csvText], { type:"text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url; a.download = filename;
@@ -295,7 +304,8 @@ export default function App() {
 
   async function downloadCSV() {
     try {
-      await exportCSVFile(toCSV(items), `ebay_inventory_${new Date().toISOString().slice(0,10)}.csv`);
+      const ts = new Date().toISOString().slice(0,16).replace("T","_").replace(":","");
+      await exportCSVFile(toCSV(items), `ebay_inventory_${ts}.csv`);
       notify("CSVをダウンロードしました");
     } catch {
       notify("CSV出力に失敗しました", "error");
