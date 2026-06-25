@@ -401,7 +401,7 @@ export default function App() {
 
       {/* タブ */}
       <div style={{ display:"flex", gap:0, padding:"16px 16px 0", borderBottom:"none" }}>
-        {[["list","📦 商品一覧"], ["guide","💡 使い方"]].map(([t, label]) => (
+        {[["list","📦 商品一覧"], ["monthly","📊 月別集計"], ["guide","💡 使い方"]].map(([t, label]) => (
           <button key={t} onClick={() => setTab(t)} style={{ padding:"8px 18px", fontSize:13, fontWeight:600, border:"none", cursor:"pointer", borderRadius:"8px 8px 0 0", background: tab===t ? "#fff" : "transparent", color: tab===t ? "#3665F3" : "#718096", borderBottom: tab===t ? "3px solid #3665F3" : "3px solid transparent" }}>
             {label}
           </button>
@@ -410,6 +410,7 @@ export default function App() {
 
       <main style={{ padding:"0 16px calc(40px + env(safe-area-inset-bottom))" }}>
         {tab === "guide" && <GuideTab />}
+        {tab === "monthly" && <MonthlyTab items={items} />}
         {tab === "list" && (
           <>
             {/* 商品追加フォーム */}
@@ -747,6 +748,140 @@ function ProfitPreview({ form }) {
             {fmt(p.profitRate, 1)}%
           </span>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── 月別集計タブ ────────────────────────────────────────────────
+function MonthlyTab({ items }) {
+  const SOLD_STATUSES = ["売約済み","発送済み","完了"];
+
+  const monthly = useMemo(() => {
+    const map = {};
+    items.forEach(item => {
+      const month = item.purchaseDate ? item.purchaseDate.slice(0,7) : "不明";
+      if (!map[month]) map[month] = [];
+      map[month].push(item);
+    });
+    return Object.entries(map)
+      .sort(([a],[b]) => b.localeCompare(a))
+      .map(([month, its]) => {
+        const sold = its.filter(i => SOLD_STATUSES.includes(i.status));
+        const profitSum = sold.reduce((s,i) => s + calcProfit(i).profit, 0);
+        const salesSum  = sold.reduce((s,i) => s + calcProfit(i).salesJPY, 0);
+        const costSum   = its.reduce((s,i) => s + calcProfit(i).totalCost, 0);
+        const avgRate   = sold.length
+          ? sold.reduce((s,i) => s + calcProfit(i).profitRate, 0) / sold.length
+          : 0;
+        return { month, total: its.length, soldCount: sold.length, profitSum, salesSum, costSum, avgRate, items: its };
+      });
+  }, [items]);
+
+  const [openMonth, setOpenMonth] = useState(null);
+
+  if (items.length === 0) {
+    return (
+      <div style={{ textAlign:"center", padding:60, color:"#a0aec0", fontSize:15, marginTop:16 }}>
+        <div style={{ fontSize:40, marginBottom:12 }}>📭</div>
+        商品データがありません。
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ marginTop:16 }}>
+      {/* 全期間サマリー */}
+      <div style={{ background:"#fff", borderRadius:10, border:"1px solid #e2e8f0", padding:"16px 18px", marginBottom:12 }}>
+        <div style={{ fontWeight:700, fontSize:14, color:"#3665F3", marginBottom:12 }}>📈 全期間サマリー</div>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(130px, 1fr))", gap:10 }}>
+          {(() => {
+            const sold = items.filter(i => SOLD_STATUSES.includes(i.status));
+            const profitSum = sold.reduce((s,i) => s + calcProfit(i).profit, 0);
+            const salesSum  = sold.reduce((s,i) => s + calcProfit(i).salesJPY, 0);
+            const avgRate   = sold.length ? sold.reduce((s,i) => s + calcProfit(i).profitRate, 0) / sold.length : 0;
+            return [
+              { label:"総仕入れ数", value:`${items.length} 件`, color:"#3665F3" },
+              { label:"売上確定数", value:`${sold.length} 件`, color:"#38A169" },
+              { label:"確定売上合計", value:`¥${fmt(salesSum)}`, color:"#3665F3" },
+              { label:"確定利益合計", value:`¥${fmt(profitSum)}`, color: profitSum >= 0 ? "#38A169" : "#E53E3E" },
+              { label:"平均利益率", value:`${fmt(avgRate,1)}%`, color: avgRate >= 20 ? "#38A169" : avgRate >= 0 ? "#DD6B20" : "#E53E3E" },
+            ].map(d => (
+              <div key={d.label} style={{ background:"#f7f8fa", borderRadius:8, padding:"10px 12px", borderLeft:`3px solid ${d.color}` }}>
+                <div style={{ fontSize:11, color:"#a0aec0", fontWeight:600, marginBottom:3 }}>{d.label}</div>
+                <div style={{ fontSize:16, fontWeight:800, color:d.color }}>{d.value}</div>
+              </div>
+            ));
+          })()}
+        </div>
+      </div>
+
+      {/* 月別テーブル（PC） */}
+      <div className="pc-table" style={{ background:"#fff", borderRadius:10, border:"1px solid #e2e8f0", overflow:"hidden" }}>
+        <table style={{ width:"100%", borderCollapse:"collapse" }}>
+          <thead>
+            <tr style={{ background:"#f7f8fa" }}>
+              {["月","仕入れ件数","売上確定件数","確定売上","確定利益","平均利益率"].map(h => (
+                <th key={h} style={{ padding:"10px 14px", fontSize:12, fontWeight:700, color:"#4a5568", textAlign: h==="月" ? "left" : "right", borderBottom:"2px solid #e2e8f0", whiteSpace:"nowrap" }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {monthly.map(row => (
+              <tr key={row.month} style={{ borderBottom:"1px solid #f0f0f0" }}>
+                <td style={{ padding:"10px 14px", fontWeight:700, fontSize:13 }}>{row.month === "不明" ? "日付未設定" : row.month}</td>
+                <td style={{ padding:"10px 14px", textAlign:"right", fontSize:13 }}>{row.total} 件</td>
+                <td style={{ padding:"10px 14px", textAlign:"right", fontSize:13, color:"#38A169", fontWeight:600 }}>{row.soldCount} 件</td>
+                <td style={{ padding:"10px 14px", textAlign:"right", fontSize:13 }}>¥{fmt(row.salesSum)}</td>
+                <td style={{ padding:"10px 14px", textAlign:"right", fontSize:13, fontWeight:700, color: row.profitSum >= 0 ? "#38A169" : "#E53E3E" }}>
+                  {row.profitSum >= 0 ? "+" : ""}¥{fmt(row.profitSum)}
+                </td>
+                <td style={{ padding:"10px 14px", textAlign:"right" }}>
+                  <ProfitBadge rate={row.avgRate} />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* 月別カード（スマホ） */}
+      <div className="sp-cards">
+        {monthly.map(row => (
+          <div key={row.month} style={{ background:"#fff", borderRadius:10, border:"1px solid #e2e8f0", marginBottom:10, overflow:"hidden" }}>
+            <div
+              onClick={() => setOpenMonth(openMonth === row.month ? null : row.month)}
+              style={{ display:"flex", alignItems:"center", padding:"12px 14px", cursor:"pointer", userSelect:"none" }}
+            >
+              <div>
+                <div style={{ fontWeight:700, fontSize:14 }}>{row.month === "不明" ? "日付未設定" : row.month}</div>
+                <div style={{ fontSize:12, color:"#718096", marginTop:2 }}>仕入 {row.total}件 / 売上確定 {row.soldCount}件</div>
+              </div>
+              <div style={{ flex:1 }} />
+              <div style={{ textAlign:"right", marginRight:10 }}>
+                <div style={{ fontWeight:800, fontSize:15, color: row.profitSum >= 0 ? "#38A169" : "#E53E3E" }}>
+                  {row.profitSum >= 0 ? "+" : ""}¥{fmt(row.profitSum)}
+                </div>
+                <ProfitBadge rate={row.avgRate} />
+              </div>
+              <span style={{ color:"#a0aec0", fontSize:14 }}>{openMonth === row.month ? "▲" : "▼"}</span>
+            </div>
+            {openMonth === row.month && (
+              <div style={{ borderTop:"1px solid #f0f0f0", padding:"10px 14px" }}>
+                {[
+                  ["確定売上", `¥${fmt(row.salesSum)}`],
+                  ["確定利益", `${row.profitSum >= 0 ? "+" : ""}¥${fmt(row.profitSum)}`],
+                  ["平均利益率", `${fmt(row.avgRate,1)}%`],
+                ].map(([label, val]) => (
+                  <div key={label} style={{ display:"flex", justifyContent:"space-between", padding:"4px 0", fontSize:13, borderBottom:"1px solid #f7f8fa" }}>
+                    <span style={{ color:"#718096" }}>{label}</span>
+                    <span style={{ fontWeight:600 }}>{val}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
       </div>
     </div>
   );
