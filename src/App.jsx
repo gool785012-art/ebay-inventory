@@ -560,120 +560,132 @@ export default function App() {
 
 // ─── 商品フォーム ──────────────────────────────────────────────────
 function ItemForm({ form, onChange }) {
-  const fieldGroup = (title, children) => (
-    <div style={{ marginBottom:18 }}>
-      <div style={{ fontSize:12, fontWeight:700, color:"#3665F3", marginBottom:8, textTransform:"uppercase", letterSpacing:.5 }}>{title}</div>
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(200px, 1fr))", gap:10 }}>
-        {children}
+  const [openSections, setOpenSections] = useState({
+    basic: true, purchase: true, sale: true, fee: false, shipping: false
+  });
+
+  function toggleSection(key) {
+    setOpenSections(s => ({ ...s, [key]: !s[key] }));
+  }
+
+  function Section({ skey, title, badge, children }) {
+    const open = openSections[skey];
+    return (
+      <div style={{ marginBottom:12, border:"1px solid #e2e8f0", borderRadius:8, overflow:"hidden" }}>
+        <div
+          onClick={() => toggleSection(skey)}
+          style={{ display:"flex", alignItems:"center", gap:8, padding:"10px 14px", cursor:"pointer", userSelect:"none", background: open ? "#EBF4FF" : "#f7f8fa", borderBottom: open ? "1px solid #e2e8f0" : "none" }}
+        >
+          <span style={{ fontSize:12, fontWeight:700, color:"#3665F3", flex:1 }}>{title}</span>
+          {badge && <span style={{ fontSize:11, color:"#718096", fontWeight:400 }}>{badge}</span>}
+          <span style={{ color:"#a0aec0", fontSize:14 }}>{open ? "▲" : "▼"}</span>
+        </div>
+        {open && (
+          <div style={{ padding:"12px 14px", display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(190px, 1fr))", gap:10 }}>
+            {children}
+          </div>
+        )}
       </div>
-    </div>
-  );
-  const F = ({ label, name, type="text", children }) => (
+    );
+  }
+
+  const F = ({ label, name, type="text", placeholder, hint, children }) => (
     <div>
-      <label style={{ display:"block", fontSize:11, fontWeight:600, color:"#718096", marginBottom:3 }}>{label}</label>
-      {children ?? <input type={type} name={name} value={form[name] ?? ""} onChange={onChange} style={inputStyle} />}
+      <label style={{ display:"block", fontSize:11, fontWeight:600, color:"#718096", marginBottom:3 }}>
+        {label}
+        {hint && <span style={{ fontWeight:400, marginLeft:4, color:"#a0aec0" }}>{hint}</span>}
+      </label>
+      {children ?? <input type={type} name={name} value={form[name] ?? ""} onChange={onChange} placeholder={placeholder} style={inputStyle} />}
     </div>
   );
+
   return (
     <div>
-      {fieldGroup("基本情報", <>
-        <F label="管理番号 / SKU" name="sku" />
-        <F label="商品名 *" name="name" />
-        <F label="ブランド" name="brand" />
-        <F label="型番" name="modelNo" />
+      <Section skey="basic" title="📋 基本情報">
+        <F label="管理番号 / SKU" name="sku" placeholder="空欄で自動採番" />
+        <F label="商品名 *" name="name" placeholder="例: Canon EF 50mm f1.4" />
+        <F label="ブランド" name="brand" placeholder="例: Canon" />
+        <F label="型番" name="modelNo" placeholder="例: EF50/1.4" />
         <F label="カテゴリ" name="category">
           <select name="category" value={form.category} onChange={onChange} style={inputStyle}>
             <option value="">選択してください</option>
             {CATEGORY_LIST.map(c => <option key={c}>{c}</option>)}
           </select>
         </F>
-        <F label="商品状態" name="condition" />
+        <F label="商品状態" name="condition" placeholder="例: 良品・動作確認済み" />
         <F label="ステータス" name="status">
           <select name="status" value={form.status} onChange={onChange} style={inputStyle}>
             {STATUS_LIST.map(s => <option key={s}>{s}</option>)}
           </select>
         </F>
-        <F label="写真URL" name="photoUrl" />
-      </>)}
+        <F label="写真URL" name="photoUrl" placeholder="https://..." />
+      </Section>
 
-      {fieldGroup("仕入れ情報", <>
+      <Section skey="purchase" title="🛒 仕入れ情報">
         <F label="仕入日" name="purchaseDate" type="date" />
-        <F label="仕入れ先" name="supplier" />
-        <F label="仕入れ価格（円）" name="purchasePrice" type="number" />
-        <F label="国内送料・手数料（円）" name="domesticShipping" type="number" />
-        <F label="修理・清掃費（円）" name="repairCost" type="number" />
-      </>)}
+        <F label="仕入れ先" name="supplier" placeholder="例: ハードオフ、メルカリ" />
+        <F label="仕入れ価格（円）" name="purchasePrice" type="number" placeholder="0" />
+        <F label="国内送料・手数料（円）" name="domesticShipping" type="number" placeholder="0" />
+        <F label="修理・清掃費（円）" name="repairCost" type="number" placeholder="0" />
+      </Section>
 
-      {fieldGroup("出品・販売情報", <>
-        <F label="出品価格（USD）" name="listPrice" type="number" />
-        <F label="販売価格（USD）" name="salePrice" type="number" />
-        <F label="為替レート（円/USD）" name="rate" type="number" />
-        <F label="海外送料（円）" name="overseaShipping" type="number" />
-        <F label="関税・DDP負担額（円）" name="tariff" type="number" />
-        <F label="eBay Item ID" name="ebayItemId" />
-      </>)}
+      <Section skey="sale" title="💰 出品・販売情報">
+        <F label="出品価格（USD）" name="listPrice" type="number" placeholder="0.00" hint="→ 見込み利益に使用" />
+        <F label="販売価格（USD）" name="salePrice" type="number" placeholder="0.00" hint="→ 確定利益に使用" />
+        <F label="為替レート（円/USD）" name="rate" type="number" placeholder="155" />
+        <F label="海外送料（円）" name="overseaShipping" type="number" placeholder="0" />
+        <F label="関税・DDP負担額（円）" name="tariff" type="number" placeholder="0" />
+        <F label="eBay Item ID" name="ebayItemId" placeholder="例: 156789012345" />
+      </Section>
 
-      {fieldGroup("手数料・税金設定", <>
+      <Section skey="fee" title="⚙️ 手数料・税金設定" badge="初期値は変更不要">
         <div>
           <label style={{ display:"block", fontSize:11, fontWeight:600, color:"#718096", marginBottom:3 }}>
-            eBay手数料率（%）
-            <span style={{ fontWeight:400, marginLeft:4, color:"#a0aec0" }}>通常 13.25%</span>
+            eBay手数料率（%）<span style={{ fontWeight:400, marginLeft:4, color:"#a0aec0" }}>通常 13.25%</span>
           </label>
           <input type="number" name="ebayFeeRate" value={form.ebayFeeRate ?? ""} onChange={onChange} step="0.01" min="0" max="100" style={inputStyle} />
         </div>
         <div>
           <label style={{ display:"block", fontSize:11, fontWeight:600, color:"#718096", marginBottom:3 }}>
-            Payoneer手数料率（%）
-            <span style={{ fontWeight:400, marginLeft:4, color:"#a0aec0" }}>通常 2%</span>
+            Payoneer手数料率（%）<span style={{ fontWeight:400, marginLeft:4, color:"#a0aec0" }}>通常 2%</span>
           </label>
           <input type="number" name="payoneerFeeRate" value={form.payoneerFeeRate ?? ""} onChange={onChange} step="0.01" min="0" max="100" style={inputStyle} />
         </div>
         <div>
           <label style={{ display:"block", fontSize:11, fontWeight:600, color:"#718096", marginBottom:3 }}>
-            広告費率（%）
-            <span style={{ fontWeight:400, marginLeft:4, color:"#a0aec0" }}>Promoted Listings</span>
+            広告費率（%）<span style={{ fontWeight:400, marginLeft:4, color:"#a0aec0" }}>Promoted Listings</span>
           </label>
           <input type="number" name="adFeeRate" value={form.adFeeRate ?? ""} onChange={onChange} step="0.01" min="0" max="100" style={inputStyle} />
         </div>
         <div>
           <label style={{ display:"block", fontSize:11, fontWeight:600, color:"#718096", marginBottom:6 }}>
-            消費税還付
-            <span style={{ fontWeight:400, marginLeft:4, color:"#a0aec0" }}>（税込仕入の場合）</span>
+            消費税還付<span style={{ fontWeight:400, marginLeft:4, color:"#a0aec0" }}>（税込仕入の場合）</span>
           </label>
           <label style={{ display:"flex", alignItems:"center", gap:8, cursor:"pointer" }}>
             <div
               onClick={() => onChange({ target: { name:"taxRefund", value: !form.taxRefund } })}
-              style={{
-                width:44, height:24, borderRadius:12, position:"relative", cursor:"pointer",
-                background: form.taxRefund ? "#3665F3" : "#cbd5e0",
-                transition:"background .2s", flexShrink:0
-              }}
+              style={{ width:44, height:24, borderRadius:12, position:"relative", cursor:"pointer", background: form.taxRefund ? "#3665F3" : "#cbd5e0", transition:"background .2s", flexShrink:0 }}
             >
-              <div style={{
-                position:"absolute", top:3, left: form.taxRefund ? 22 : 3,
-                width:18, height:18, borderRadius:9, background:"#fff",
-                boxShadow:"0 1px 3px rgba(0,0,0,0.2)", transition:"left .2s"
-              }} />
+              <div style={{ position:"absolute", top:3, left: form.taxRefund ? 22 : 3, width:18, height:18, borderRadius:9, background:"#fff", boxShadow:"0 1px 3px rgba(0,0,0,0.2)", transition:"left .2s" }} />
             </div>
             <span style={{ fontSize:13, color: form.taxRefund ? "#3665F3" : "#718096", fontWeight:600 }}>
               {form.taxRefund ? "還付あり（仕入価格の約9.09%を控除）" : "還付なし"}
             </span>
           </label>
         </div>
-      </>)}
+      </Section>
 
-      {fieldGroup("発送・配送情報", <>
-        <F label="販売先国" name="destCountry" />
-        <F label="発送方法" name="shippingMethod" />
-        <F label="追跡番号" name="trackingNo" />
-      </>)}
+      <Section skey="shipping" title="🚚 発送・配送情報">
+        <F label="販売先国" name="destCountry" placeholder="例: アメリカ、シンガポール" />
+        <F label="発送方法" name="shippingMethod" placeholder="例: EMS、eパケット" />
+        <F label="追跡番号" name="trackingNo" placeholder="例: RJ123456789JP" />
+      </Section>
 
-      <div>
+      <div style={{ marginTop:4 }}>
         <label style={{ display:"block", fontSize:11, fontWeight:600, color:"#718096", marginBottom:3 }}>メモ</label>
-        <textarea name="memo" value={form.memo ?? ""} onChange={onChange} rows={4} style={{ ...inputStyle, resize:"vertical", minHeight:90, fontFamily:"inherit" }} />
+        <textarea name="memo" value={form.memo ?? ""} onChange={onChange} rows={3} placeholder="状態の詳細、注意事項など" style={{ ...inputStyle, resize:"vertical", minHeight:72, fontFamily:"inherit" }} />
       </div>
 
-      {/* リアルタイム利益プレビュー */}
       <ProfitPreview form={form} />
     </div>
   );
