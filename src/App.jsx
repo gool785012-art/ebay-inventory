@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 
 // ─── 定数 ──────────────────────────────────────────────────────────
-const STORAGE_KEY = "ebay_inventory_v2";
+const STORAGE_KEY = "ebay_inventory_v3";
 const STATUS_LIST = ["仕入れ済み","検品中","撮影待ち","出品中","売約済み","発送済み","返品対応中","完了","保留"];
 const STATUS_COLOR = {
   "仕入れ済み":"#805AD5","検品中":"#D69E2E","撮影待ち":"#3182CE",
@@ -11,29 +11,62 @@ const STATUS_COLOR = {
 const CATEGORY_LIST = ["カメラ","レンズ","時計","コスメ・美容","ヘアケア機器","エステ機器","アクセサリー","衣類","電子機器","その他"];
 
 const INITIAL_RATE = 155;
-const INITIAL_EBAY_FEE = 15;
-const INITIAL_EXTRA_FEE = 3;
+const INITIAL_EBAY_FEE = 13.25;   // eBay最終価格手数料（カテゴリ平均）
+const INITIAL_PAYONEER_FEE = 2.0; // Payoneer受取手数料
+const INITIAL_AD_FEE = 0;         // プロモーテッドリスティング広告費
+const CONSUMPTION_TAX_RATE = 0.10; // 消費税率
 
 function genId() { return "SKU-" + Date.now() + "-" + Math.floor(Math.random()*1000); }
 
+// ─── 利益計算ロジック ────────────────────────────────────────────────
+// 計算式の概要:
+//   売上円換算 = 販売(or出品)USD × 為替レート
+//   eBay手数料 = 売上円換算 × eBay手数料率
+//   広告費     = 売上円換算 × 広告費率（Promoted Listings）
+//   Payoneer手数料 = (売上円換算 - eBay手数料 - 広告費) × Payoneer手数料率
+//                    ※eBay・広告費控除後の受取額に対して課金されるため
+//   消費税還付 = 仕入価格 × 税率/(1+税率)  ※税込仕入の場合のみ有効
+//   総コスト   = 仕入 + 国内送料 + 修理費 + 海外送料 + 関税
+//              + eBay手数料 + 広告費 + Payoneer手数料 - 消費税還付
+//   利益 = 売上円換算 - 総コスト
 function calcProfit(item) {
   const saleUSD = parseFloat(item.salePrice) || parseFloat(item.listPrice) || 0;
   const rate = parseFloat(item.rate) || INITIAL_RATE;
   const salesJPY = saleUSD * rate;
-  const ebayFeeRate = parseFloat(item.ebayFeeRate) / 100 || INITIAL_EBAY_FEE / 100;
-  const extraFeeRate = parseFloat(item.extraFeeRate) / 100 || INITIAL_EXTRA_FEE / 100;
-  const purchase = parseFloat(item.purchasePrice) || 0;
+
+  const ebayFeeRate    = parseFloat(item.ebayFeeRate)    / 100 || INITIAL_EBAY_FEE    / 100;
+  const payoneerFeeRate= parseFloat(item.payoneerFeeRate)/ 100 || INITIAL_PAYONEER_FEE/ 100;
+  const adFeeRate      = parseFloat(item.adFeeRate)      / 100 || INITIAL_AD_FEE      / 100;
+
+  const purchase = parseFloat(item.purchasePrice)    || 0;
   const domestic = parseFloat(item.domesticShipping) || 0;
-  const repair = parseFloat(item.repairCost) || 0;
-  const oversea = parseFloat(item.overseaShipping) || 0;
-  const tariff = parseFloat(item.tariff) || 0;
-  const ebayFee = salesJPY * ebayFeeRate;
-  const extraFee = salesJPY * extraFeeRate;
-  const totalCost = purchase + domestic + repair + oversea + tariff + ebayFee + extraFee;
-  const profit = salesJPY - totalCost;
+  const repair   = parseFloat(item.repairCost)       || 0;
+  const oversea  = parseFloat(item.overseaShipping)  || 0;
+  const tariff   = parseFloat(item.tariff)           || 0;
+
+  const ebayFee     = salesJPY * ebayFeeRate;
+  const adFee       = salesJPY * adFeeRate;
+  // Payoneer手数料はeBay手数料・広告費を差し引いた受取額に対して課金
+  const payoneerFee = (salesJPY - ebayFee - adFee) * payoneerFeeRate;
+
+  // 消費税還付: 税込仕入価格から消費税分を控除（還付あり=trueの場合）
+  // 税込価格 P に対して消費税 = P × 10/110
+  const taxRefund = item.taxRefund
+    ? purchase * (CONSUMPTION_TAX_RATE / (1 + CONSUMPTION_TAX_RATE))
+    : 0;
+
+  const totalCost = purchase + domestic + repair + oversea + tariff
+                  + ebayFee + adFee + payoneerFee - taxRefund;
+
+  const profit     = salesJPY - totalCost;
   const profitRate = salesJPY > 0 ? (profit / salesJPY) * 100 : 0;
   const isEstimate = !(parseFloat(item.salePrice) > 0);
-  return { salesJPY, profit, profitRate, totalCost, isEstimate };
+
+  return {
+    salesJPY, profit, profitRate, totalCost, isEstimate,
+    // 明細（ProfitPreview・将来のCSV明細向け）
+    breakdown: { ebayFee, adFee, payoneerFee, taxRefund, purchase, domestic, repair, oversea, tariff }
+  };
 }
 
 const SAMPLE_ITEMS = [
@@ -42,8 +75,8 @@ const SAMPLE_ITEMS = [
     modelNo:"EF50/1.4", category:"レンズ", purchaseDate:"2025-05-10",
     supplier:"ハードオフ新宿店", purchasePrice:12000, domesticShipping:500,
     repairCost:0, listPrice:189, salePrice:"", rate:155, overseaShipping:2800,
-    tariff:0, ebayFeeRate:15, extraFeeRate:3, destCountry:"アメリカ",
-    shippingMethod:"EMS", trackingNo:"", ebayItemId:"156789012345",
+    tariff:0, ebayFeeRate:13.25, payoneerFeeRate:2, adFeeRate:3, taxRefund:false,
+    destCountry:"アメリカ", shippingMethod:"EMS", trackingNo:"", ebayItemId:"156789012345",
     condition:"良品", status:"出品中", memo:"前玉クリーニング済み。小傷あり。", photoUrl:""
   },
   {
@@ -51,8 +84,8 @@ const SAMPLE_ITEMS = [
     modelNo:"EH-HV60", category:"ヘアケア機器", purchaseDate:"2025-05-15",
     supplier:"メルカリ", purchasePrice:3200, domesticShipping:0,
     repairCost:800, listPrice:65, salePrice:62, rate:155, overseaShipping:1800,
-    tariff:0, ebayFeeRate:15, extraFeeRate:3, destCountry:"オーストラリア",
-    shippingMethod:"SAL便", trackingNo:"RJ123456789JP", ebayItemId:"145678901234",
+    tariff:0, ebayFeeRate:13.25, payoneerFeeRate:2, adFeeRate:0, taxRefund:false,
+    destCountry:"オーストラリア", shippingMethod:"SAL便", trackingNo:"RJ123456789JP", ebayItemId:"145678901234",
     condition:"動作確認済み", status:"発送済み", memo:"100V専用の注意書き記載済み", photoUrl:""
   },
   {
@@ -60,8 +93,8 @@ const SAMPLE_ITEMS = [
     modelNo:"TSUBAKI-OIL-150", category:"コスメ・美容", purchaseDate:"2025-05-20",
     supplier:"コスモス薬品", purchasePrice:880, domesticShipping:0,
     repairCost:0, listPrice:24, salePrice:"", rate:155, overseaShipping:1200,
-    tariff:0, ebayFeeRate:15, extraFeeRate:3, destCountry:"シンガポール",
-    shippingMethod:"eパケット", trackingNo:"", ebayItemId:"",
+    tariff:0, ebayFeeRate:13.25, payoneerFeeRate:2, adFeeRate:5, taxRefund:true,
+    destCountry:"シンガポール", shippingMethod:"eパケット", trackingNo:"", ebayItemId:"",
     condition:"新品・未開封", status:"撮影待ち", memo:"3本ロット。液漏れ防止ビニール梱包予定。", photoUrl:""
   }
 ];
@@ -70,7 +103,8 @@ const EMPTY_FORM = {
   sku:"", name:"", brand:"", modelNo:"", category:"", purchaseDate:"",
   supplier:"", purchasePrice:"", domesticShipping:"", repairCost:"",
   listPrice:"", salePrice:"", rate:INITIAL_RATE, overseaShipping:"",
-  tariff:"", ebayFeeRate:INITIAL_EBAY_FEE, extraFeeRate:INITIAL_EXTRA_FEE,
+  tariff:"", ebayFeeRate:INITIAL_EBAY_FEE, payoneerFeeRate:INITIAL_PAYONEER_FEE,
+  adFeeRate:INITIAL_AD_FEE, taxRefund:false,
   destCountry:"", shippingMethod:"", trackingNo:"", ebayItemId:"",
   condition:"", status:"仕入れ済み", memo:"", photoUrl:""
 };
@@ -88,8 +122,8 @@ function fmtUSD(n) {
 function toCSV(items) {
   const headers = ["id","sku","name","brand","modelNo","category","purchaseDate","supplier",
     "purchasePrice","domesticShipping","repairCost","listPrice","salePrice","rate",
-    "overseaShipping","tariff","ebayFeeRate","extraFeeRate","destCountry","shippingMethod",
-    "trackingNo","ebayItemId","condition","status","memo","photoUrl"];
+    "overseaShipping","tariff","ebayFeeRate","payoneerFeeRate","adFeeRate","taxRefund",
+    "destCountry","shippingMethod","trackingNo","ebayItemId","condition","status","memo","photoUrl"];
   const escape = v => `"${String(v ?? "").replace(/"/g,'""')}"`;
   return [headers.join(","), ...items.map(r => headers.map(h => escape(r[h])).join(","))].join("\n");
 }
@@ -218,7 +252,8 @@ export default function App() {
 
   function handleFormChange(e) {
     const { name, value } = e.target;
-    setForm(f => ({ ...f, [name]: value }));
+    // taxRefund はboolean として保持
+    setForm(f => ({ ...f, [name]: name === "taxRefund" ? Boolean(value) : value }));
   }
 
   function handleSubmit() {
@@ -575,9 +610,56 @@ function ItemForm({ form, onChange }) {
         <F label="為替レート（円/USD）" name="rate" type="number" />
         <F label="海外送料（円）" name="overseaShipping" type="number" />
         <F label="関税・DDP負担額（円）" name="tariff" type="number" />
-        <F label="eBay手数料率（%）" name="ebayFeeRate" type="number" />
-        <F label="決済・広告など追加手数料率（%）" name="extraFeeRate" type="number" />
         <F label="eBay Item ID" name="ebayItemId" />
+      </>)}
+
+      {fieldGroup("手数料・税金設定", <>
+        <div>
+          <label style={{ display:"block", fontSize:11, fontWeight:600, color:"#718096", marginBottom:3 }}>
+            eBay手数料率（%）
+            <span style={{ fontWeight:400, marginLeft:4, color:"#a0aec0" }}>通常 13.25%</span>
+          </label>
+          <input type="number" name="ebayFeeRate" value={form.ebayFeeRate ?? ""} onChange={onChange} step="0.01" min="0" max="100" style={inputStyle} />
+        </div>
+        <div>
+          <label style={{ display:"block", fontSize:11, fontWeight:600, color:"#718096", marginBottom:3 }}>
+            Payoneer手数料率（%）
+            <span style={{ fontWeight:400, marginLeft:4, color:"#a0aec0" }}>通常 2%</span>
+          </label>
+          <input type="number" name="payoneerFeeRate" value={form.payoneerFeeRate ?? ""} onChange={onChange} step="0.01" min="0" max="100" style={inputStyle} />
+        </div>
+        <div>
+          <label style={{ display:"block", fontSize:11, fontWeight:600, color:"#718096", marginBottom:3 }}>
+            広告費率（%）
+            <span style={{ fontWeight:400, marginLeft:4, color:"#a0aec0" }}>Promoted Listings</span>
+          </label>
+          <input type="number" name="adFeeRate" value={form.adFeeRate ?? ""} onChange={onChange} step="0.01" min="0" max="100" style={inputStyle} />
+        </div>
+        <div>
+          <label style={{ display:"block", fontSize:11, fontWeight:600, color:"#718096", marginBottom:6 }}>
+            消費税還付
+            <span style={{ fontWeight:400, marginLeft:4, color:"#a0aec0" }}>（税込仕入の場合）</span>
+          </label>
+          <label style={{ display:"flex", alignItems:"center", gap:8, cursor:"pointer" }}>
+            <div
+              onClick={() => onChange({ target: { name:"taxRefund", value: !form.taxRefund } })}
+              style={{
+                width:44, height:24, borderRadius:12, position:"relative", cursor:"pointer",
+                background: form.taxRefund ? "#3665F3" : "#cbd5e0",
+                transition:"background .2s", flexShrink:0
+              }}
+            >
+              <div style={{
+                position:"absolute", top:3, left: form.taxRefund ? 22 : 3,
+                width:18, height:18, borderRadius:9, background:"#fff",
+                boxShadow:"0 1px 3px rgba(0,0,0,0.2)", transition:"left .2s"
+              }} />
+            </div>
+            <span style={{ fontSize:13, color: form.taxRefund ? "#3665F3" : "#718096", fontWeight:600 }}>
+              {form.taxRefund ? "還付あり（仕入価格の約9.09%を控除）" : "還付なし"}
+            </span>
+          </label>
+        </div>
       </>)}
 
       {fieldGroup("発送・配送情報", <>
@@ -600,19 +682,58 @@ function ItemForm({ form, onChange }) {
 function ProfitPreview({ form }) {
   const p = calcProfit(form);
   if (!form.listPrice && !form.salePrice) return null;
+  const { breakdown: b } = p;
+  const profitColor  = p.profit     >= 0   ? "#38A169" : "#E53E3E";
+  const rateColor    = p.profitRate >= 20  ? "#38A169" : p.profitRate >= 0 ? "#DD6B20" : "#E53E3E";
+  const borderColor  = p.profit     >= 0   ? "#9AE6B4" : "#FEB2B2";
+  const bgColor      = p.profit     >= 0   ? "#F0FFF4" : "#FFF5F5";
+  const headerColor  = p.profit     >= 0   ? "#276749" : "#9B2C2C";
+
+  const row = (label, value, opts = {}) => (
+    <div style={{ display:"flex", justifyContent:"space-between", padding:"4px 0", borderBottom:"1px solid #f0f0f0", fontSize:13, ...opts.style }}>
+      <span style={{ color: opts.labelColor || "#4a5568" }}>{label}</span>
+      <span style={{ fontWeight: opts.bold ? 700 : 500, color: opts.valueColor || "#2d3748" }}>{value}</span>
+    </div>
+  );
+
   return (
-    <div style={{ background: p.profit >= 0 ? "#F0FFF4" : "#FFF5F5", border:`1px solid ${p.profit >= 0 ? "#9AE6B4" : "#FEB2B2"}`, borderRadius:8, padding:"12px 16px", marginTop:14 }}>
-      <div style={{ fontWeight:700, fontSize:13, marginBottom:6, color: p.profit >= 0 ? "#276749" : "#9B2C2C" }}>
-        {p.isEstimate ? "📊 見込み利益プレビュー" : "✅ 確定利益プレビュー"}
+    <div style={{ background: bgColor, border:`1px solid ${borderColor}`, borderRadius:8, padding:"12px 16px", marginTop:14 }}>
+      <div style={{ fontWeight:700, fontSize:13, marginBottom:10, color: headerColor }}>
+        {p.isEstimate ? "📊 見込み利益プレビュー（出品価格ベース）" : "✅ 確定利益プレビュー"}
       </div>
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(140px, 1fr))", gap:6, fontSize:13 }}>
-        <div>売上円換算: <b>¥{fmt(p.salesJPY)}</b></div>
-        <div>総コスト: <b>¥{fmt(p.totalCost)}</b></div>
-        <div style={{ fontWeight:700, color: p.profit >= 0 ? "#38A169" : "#E53E3E" }}>
-          利益: {p.profit >= 0 ? "+" : ""}¥{fmt(p.profit)}
-        </div>
-        <div style={{ fontWeight:700, color: p.profitRate >= 20 ? "#38A169" : p.profitRate >= 0 ? "#DD6B20" : "#E53E3E" }}>
-          利益率: {fmt(p.profitRate, 1)}%
+
+      {/* 売上 */}
+      {row("売上円換算", `¥${fmt(p.salesJPY)}`, { bold:true })}
+
+      {/* コスト明細 */}
+      <div style={{ margin:"6px 0 2px", fontSize:11, fontWeight:700, color:"#a0aec0", letterSpacing:.5 }}>コスト内訳</div>
+      {row("　仕入価格",     `¥${fmt(b.purchase)}`)}
+      {row("　国内送料・手数料", `¥${fmt(b.domestic)}`)}
+      {b.repair   > 0 && row("　修理・清掃費",  `¥${fmt(b.repair)}`)}
+      {row("　海外送料",     `¥${fmt(b.oversea)}`)}
+      {b.tariff   > 0 && row("　関税",          `¥${fmt(b.tariff)}`)}
+      {row("　eBay手数料",  `¥${fmt(b.ebayFee)}`,     { labelColor:"#DD6B20" })}
+      {b.adFee    > 0 && row("　広告費",        `¥${fmt(b.adFee)}`,     { labelColor:"#DD6B20" })}
+      {row("　Payoneer手数料", `¥${fmt(b.payoneerFee)}`, { labelColor:"#DD6B20" })}
+      {b.taxRefund > 0 && row("　消費税還付",   `－¥${fmt(b.taxRefund)}`, { labelColor:"#38A169" })}
+
+      {/* 合計 */}
+      <div style={{ marginTop:6 }}>
+        {row("総コスト", `¥${fmt(p.totalCost)}`, { bold:true })}
+      </div>
+
+      {/* 利益 */}
+      <div style={{ marginTop:8, padding:"8px 0 0", borderTop:`2px solid ${borderColor}`, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+        <span style={{ fontWeight:700, fontSize:14, color: headerColor }}>
+          {p.profit >= 0 ? "利益" : "損失"}
+        </span>
+        <div style={{ textAlign:"right" }}>
+          <span style={{ fontWeight:800, fontSize:18, color: profitColor }}>
+            {p.profit >= 0 ? "+" : ""}¥{fmt(p.profit)}
+          </span>
+          <span style={{ fontWeight:700, fontSize:14, color: rateColor, marginLeft:10 }}>
+            {fmt(p.profitRate, 1)}%
+          </span>
         </div>
       </div>
     </div>
