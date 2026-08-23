@@ -1,4 +1,6 @@
-// 画面上部の共通ヘッダー（ユーザー名・権限・ログアウトボタン）
+import Link from "next/link";
+
+// 画面上部の共通ヘッダー（ナビゲーション・ユーザー名・権限・ログアウトボタン）
 export default function AppHeader({
   fullName,
   role,
@@ -9,7 +11,12 @@ export default function AppHeader({
   return (
     <header className="sticky top-0 z-50 border-b border-slate-200 bg-white px-4 py-3">
       <div className="mx-auto flex max-w-6xl items-center gap-3">
-        <span className="text-lg font-bold text-slate-800">eBay外注管理</span>
+        <Link
+          href={role === "admin" ? "/admin" : "/staff"}
+          className="text-lg font-bold text-slate-800"
+        >
+          eBay外注管理
+        </Link>
         <span
           className={`rounded-full border px-2 py-0.5 text-xs font-bold ${
             role === "admin"
@@ -19,6 +26,22 @@ export default function AppHeader({
         >
           {role === "admin" ? "管理者" : "スタッフ"}
         </span>
+        {role === "admin" && (
+          <nav className="ml-2 flex gap-1 text-sm font-semibold">
+            <Link
+              href="/admin"
+              className="rounded-lg px-3 py-1.5 text-slate-600 hover:bg-slate-100"
+            >
+              ダッシュボード
+            </Link>
+            <Link
+              href="/admin/products"
+              className="rounded-lg px-3 py-1.5 text-slate-600 hover:bg-slate-100"
+            >
+              商品管理
+            </Link>
+          </nav>
+        )}
         <div className="flex-1" />
         <span className="hidden text-sm text-slate-500 sm:inline">
           {fullName}

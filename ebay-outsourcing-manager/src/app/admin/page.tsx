@@ -1,3 +1,4 @@
+import Link from "next/link";
 import AppHeader from "@/components/AppHeader";
 import { requireProfile } from "@/lib/auth";
 import { STATUSES, statusLabel } from "@/lib/constants";
@@ -43,16 +44,17 @@ export default async function AdminDashboard() {
 
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
           {todayCards.map((c) => (
-            <div
+            <Link
               key={c.key}
-              className={`rounded-xl border border-slate-200 border-t-4 bg-white p-4 shadow-sm ${c.color}`}
+              href={`/admin/products?status=${c.key}`}
+              className={`rounded-xl border border-slate-200 border-t-4 bg-white p-4 shadow-sm transition hover:shadow-md ${c.color}`}
             >
               <div className="text-xs font-semibold text-slate-500">{c.label}</div>
               <div className="mt-1 text-2xl font-bold text-slate-800">
                 {counts[c.key] ?? 0}
                 <span className="ml-1 text-sm font-normal text-slate-400">件</span>
               </div>
-            </div>
+            </Link>
           ))}
         </div>
 
@@ -60,18 +62,19 @@ export default async function AdminDashboard() {
           <h2 className="mb-3 text-base font-bold text-slate-700">全ステータス</h2>
           <div className="flex flex-wrap gap-2">
             {STATUSES.map((s) => (
-              <span
+              <Link
                 key={s.key}
-                className={`rounded-full border px-3 py-1 text-sm font-semibold ${s.badge}`}
+                href={`/admin/products?status=${s.key}`}
+                className={`rounded-full border px-3 py-1 text-sm font-semibold transition hover:opacity-70 ${s.badge}`}
               >
                 {statusLabel(s.key)}: {counts[s.key] ?? 0}件
-              </span>
+              </Link>
             ))}
           </div>
         </div>
 
         <div className="mt-8 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm text-slate-500">
-          商品管理・スタッフ管理・報酬集計は Phase 2 以降で追加されます。
+          スタッフ管理・報酬集計は Phase 5 以降で追加されます。
         </div>
       </main>
     </>
