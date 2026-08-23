@@ -22,6 +22,7 @@
 3. SQL Editorに貼り付けて「**Run**」ボタンをクリック
 4. 「Success. No rows returned」と表示されれば成功です
    （テーブル・アクセス権限・初期カテゴリー・発送会社がすべて作成されます）
+5. **写真保存の設定（Phase 3以降で必要）**: 同じ手順で `ebay-outsourcing-manager/supabase/migrations/0002_storage.sql` の内容も貼り付けて「Run」してください（写真の保存場所と閲覧権限が作成されます）
 
 ## 手順C: 管理者アカウント（あなた自身）を作る
 

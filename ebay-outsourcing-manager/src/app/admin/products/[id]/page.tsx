@@ -6,6 +6,8 @@ import DeadlineBadge from "@/components/DeadlineBadge";
 import Timeline from "@/components/Timeline";
 import ProductQuickActions from "@/components/ProductQuickActions";
 import CommentForm from "@/components/CommentForm";
+import PhotoGallery from "@/components/PhotoGallery";
+import PhotoUpload from "@/components/PhotoUpload";
 import { requireProfile } from "@/lib/auth";
 import { statusLabel } from "@/lib/constants";
 import type { Product, Profile } from "@/types/db";
@@ -52,6 +54,7 @@ export default async function ProductDetailPage(props: {
     { data: allProfiles },
     { data: categories },
     { data: carriers },
+    { data: photos },
   ] = await Promise.all([
     supabase.from("products").select("*").eq("id", id).single<Product>(),
     supabase
@@ -67,6 +70,11 @@ export default async function ProductDetailPage(props: {
     supabase.from("profiles").select("*"),
     supabase.from("categories").select("*"),
     supabase.from("carriers").select("*"),
+    supabase
+      .from("product_photos")
+      .select("id, photo_category, storage_path, created_at")
+      .eq("product_id", id)
+      .order("created_at"),
   ]);
 
   if (!product) notFound();
@@ -179,9 +187,15 @@ export default async function ProductDetailPage(props: {
           </div>
         </div>
 
-        {/* 写真（Phase 3 で実装） */}
-        <div className="mt-4 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-5 text-center text-sm text-slate-500">
-          📷 写真の表示・アップロードは Phase 3 で追加されます
+        {/* 写真 */}
+        <div className="mt-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h2 className="mb-3 text-base font-bold text-slate-700">
+            写真（{(photos ?? []).length}枚）
+          </h2>
+          <PhotoGallery photos={photos ?? []} />
+          <div className="mt-4">
+            <PhotoUpload productId={product.id} />
+          </div>
         </div>
 
         {/* コメント */}

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import AppHeader from "@/components/AppHeader";
 import { requireProfile } from "@/lib/auth";
 
@@ -53,16 +54,19 @@ export default async function StaffHome() {
                   <p className="mt-1 text-xs text-slate-500">{g.next}</p>
                   <ul className="mt-3 space-y-2">
                     {g.items.map((p) => (
-                      <li
-                        key={p.id}
-                        className="rounded-lg bg-slate-50 px-3 py-2 text-sm"
-                      >
-                        <span className="font-mono text-xs text-slate-400">
-                          {p.control_number}
-                        </span>
-                        <span className="ml-2 font-semibold text-slate-700">
-                          {p.name}
-                        </span>
+                      <li key={p.id}>
+                        <Link
+                          href={`/staff/products/${p.id}`}
+                          className="flex items-center rounded-lg bg-slate-50 px-3 py-3 text-sm transition active:bg-slate-100"
+                        >
+                          <span className="font-mono text-xs text-slate-400">
+                            {p.control_number}
+                          </span>
+                          <span className="ml-2 flex-1 font-semibold text-slate-700">
+                            {p.name}
+                          </span>
+                          <span className="font-bold text-blue-600">作業する →</span>
+                        </Link>
                       </li>
                     ))}
                   </ul>
@@ -72,9 +76,9 @@ export default async function StaffHome() {
           ))}
         </div>
 
-        <div className="mt-8 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm text-slate-500">
-          作業入力画面（到着報告・検品・梱包・発送）は Phase 3 で追加されます。
-        </div>
+        <p className="mt-8 text-center text-xs text-slate-400">
+          商品名をタップすると作業画面が開きます。作業で困ったときは商品ページのコメントで管理者に連絡してください。
+        </p>
       </main>
     </>
   );
