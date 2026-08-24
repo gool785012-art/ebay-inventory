@@ -26,8 +26,8 @@ export default function AppHeader({
         >
           {role === "admin" ? "管理者" : "スタッフ"}
         </span>
-        {role === "admin" && (
-          <nav className="ml-2 flex gap-1 text-sm font-semibold">
+        {role === "admin" ? (
+          <nav className="ml-2 flex flex-wrap gap-1 text-sm font-semibold">
             <Link
               href="/admin"
               className="rounded-lg px-3 py-1.5 text-slate-600 hover:bg-slate-100"
@@ -39,6 +39,33 @@ export default function AppHeader({
               className="rounded-lg px-3 py-1.5 text-slate-600 hover:bg-slate-100"
             >
               商品管理
+            </Link>
+            <Link
+              href="/admin/payments"
+              className="rounded-lg px-3 py-1.5 text-slate-600 hover:bg-slate-100"
+            >
+              報酬管理
+            </Link>
+            <Link
+              href="/admin/staff"
+              className="rounded-lg px-3 py-1.5 text-slate-600 hover:bg-slate-100"
+            >
+              スタッフ
+            </Link>
+          </nav>
+        ) : (
+          <nav className="ml-2 flex gap-1 text-sm font-semibold">
+            <Link
+              href="/staff"
+              className="rounded-lg px-3 py-1.5 text-slate-600 hover:bg-slate-100"
+            >
+              作業
+            </Link>
+            <Link
+              href="/staff/rewards"
+              className="rounded-lg px-3 py-1.5 text-slate-600 hover:bg-slate-100"
+            >
+              報酬
             </Link>
           </nav>
         )}

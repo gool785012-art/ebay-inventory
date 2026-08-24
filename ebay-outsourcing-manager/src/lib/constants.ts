@@ -58,3 +58,24 @@ export const STAFF_STATUSES = [
   { key: "paused",     label: "休止" },
   { key: "terminated", label: "契約終了" },
 ] as const;
+
+// 支払状況（Phase 5）
+export const PAYMENT_STATUSES = [
+  { key: "unpaid",  label: "未払い",   badge: "bg-red-50 text-red-700 border-red-200" },
+  { key: "paid",    label: "支払済み", badge: "bg-green-50 text-green-700 border-green-200" },
+  { key: "on_hold", label: "保留",     badge: "bg-gray-100 text-gray-500 border-gray-300" },
+] as const;
+
+export function paymentStatusLabel(key: string): string {
+  return PAYMENT_STATUSES.find((s) => s.key === key)?.label ?? key;
+}
+
+export function paymentBadgeClass(key: string): string {
+  return PAYMENT_STATUSES.find((s) => s.key === key)?.badge ?? "bg-gray-100 text-gray-500 border-gray-300";
+}
+
+// 金額表示（例: 9,800円）
+export function fmtYen(n: number | null | undefined): string {
+  if (n == null || isNaN(n)) return "—";
+  return n.toLocaleString("ja-JP") + "円";
+}

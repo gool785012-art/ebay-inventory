@@ -9,7 +9,7 @@ import CommentForm from "@/components/CommentForm";
 import PhotoGallery from "@/components/PhotoGallery";
 import PhotoUpload from "@/components/PhotoUpload";
 import { requireProfile } from "@/lib/auth";
-import { statusLabel } from "@/lib/constants";
+import { statusLabel, paymentStatusLabel } from "@/lib/constants";
 import type { Product, Profile } from "@/types/db";
 
 function fmtDateTime(iso: string) {
@@ -24,6 +24,11 @@ function logText(log: {
   action: string; field: string; old_value: string; new_value: string;
 }, nameOf: (id: string) => string) {
   if (log.action === "created") return `商品を登録しました（${log.new_value}）`;
+  if (log.action === "reward_confirmed") return `報酬を確定しました（${log.new_value}円）`;
+  if (log.action === "reward_changed")
+    return `報酬を「${log.old_value}円」→「${log.new_value}円」に変更`;
+  if (log.action === "payment_status_changed")
+    return `支払状況「${paymentStatusLabel(log.old_value)}」→「${paymentStatusLabel(log.new_value)}」`;
   if (log.action === "status_changed")
     return `ステータス「${statusLabel(log.old_value)}」→「${statusLabel(log.new_value)}」`;
   if (log.action === "assigned") {
