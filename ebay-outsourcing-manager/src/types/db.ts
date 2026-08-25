@@ -52,3 +52,16 @@ export type Product = {
   created_at: string;
   updated_at: string;
 };
+
+export type WorkReward = {
+  id: string;
+  staff_id: string | null;
+  product_id: string;
+  reward_amount: number;
+  completed_at: string;
+  payment_status: "unpaid" | "paid" | "on_hold";
+  paid_at: string | null;
+  memo: string;
+  created_at: string;
+  updated_at: string;
+};

@@ -13,11 +13,13 @@ export default function ProductForm({
   carriers,
   staffList,
   initial,
+  initialFee,
 }: {
   categories: Category[];
   carriers: Carrier[];
   staffList: Profile[];
   initial?: Product;
+  initialFee?: number | null;
 }) {
   const router = useRouter();
   const isEdit = !!initial;
@@ -40,6 +42,7 @@ export default function ProductForm({
     serial_number: initial?.serial_number ?? "",
     notes: initial?.notes ?? "",
   });
+  const [fee, setFee] = useState(initialFee != null ? String(initialFee) : "");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -110,27 +113,55 @@ export default function ProductForm({
       notes: form.notes,
     };
 
-    let result;
+    let productId: string;
     if (isEdit) {
-      result = await supabase.from("products").update(payload).eq("id", initial!.id);
+      const result = await supabase.from("products").update(payload).eq("id", initial!.id);
+      if (result.error) {
+        setSaving(false);
+        setError(saveErrorMessage(result.error, payload.control_number));
+        return;
+      }
+      productId = initial!.id;
     } else {
-      result = await supabase
+      const result = await supabase
         .from("products")
-        .insert({ ...payload, created_by: user?.id ?? null });
+        .insert({ ...payload, created_by: user?.id ?? null })
+        .select("id")
+        .single();
+      if (result.error || !result.data) {
+        setSaving(false);
+        setError(saveErrorMessage(result.error, payload.control_number));
+        return;
+      }
+      productId = result.data.id;
     }
 
-    if (result.error) {
-      setSaving(false);
-      if (result.error.code === "23505") {
-        setError(`管理番号「${payload.control_number}」はすでに使われています。別の番号にしてください。`);
-      } else {
-        setError("保存に失敗しました: " + result.error.message);
+    // 外注報酬（商品ごとの上書き）: 入力ありなら保存、空欄ならカテゴリー標準報酬を使う
+    if (fee.trim() !== "") {
+      const { error: feeErr } = await supabase
+        .from("product_fees")
+        .upsert({ product_id: productId, amount: Number(fee) }, { onConflict: "product_id" });
+      if (feeErr) {
+        setSaving(false);
+        setError("外注報酬の保存に失敗しました: " + feeErr.message);
+        return;
       }
-      return;
+    } else if (isEdit && initialFee != null) {
+      await supabase.from("product_fees").delete().eq("product_id", productId);
     }
 
     router.push("/admin/products");
     router.refresh();
+  }
+
+  function saveErrorMessage(
+    err: { code?: string; message: string } | null,
+    controlNumber: string
+  ) {
+    if (err?.code === "23505") {
+      return `管理番号「${controlNumber}」はすでに使われています。別の番号にしてください。`;
+    }
+    return "保存に失敗しました: " + (err?.message ?? "不明なエラー");
   }
 
   const inputCls =
@@ -215,6 +246,20 @@ export default function ProductForm({
               value={form.serial_number}
               onChange={(e) => set("serial_number", e.target.value)}
               className={`${inputCls} font-mono`}
+            />
+          </div>
+          <div>
+            <label className={labelCls}>外注報酬（円）※スタッフには金額のみ表示</label>
+            <input
+              type="number"
+              min="0"
+              value={fee}
+              onChange={(e) => setFee(e.target.value)}
+              placeholder={(() => {
+                const cat = categories.find((c) => c.id === Number(form.category_id));
+                return cat ? `空欄なら標準報酬 ${cat.default_fee}円` : "空欄ならカテゴリー標準報酬";
+              })()}
+              className={inputCls}
             />
           </div>
         </div>

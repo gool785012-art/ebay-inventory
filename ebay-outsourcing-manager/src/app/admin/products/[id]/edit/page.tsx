@@ -11,12 +11,13 @@ export default async function EditProductPage(props: {
   const { id } = await props.params;
   const { supabase, profile } = await requireProfile("admin");
 
-  const [{ data: product }, { data: categories }, { data: carriers }, { data: staffList }] =
+  const [{ data: product }, { data: categories }, { data: carriers }, { data: staffList }, { data: feeRow }] =
     await Promise.all([
       supabase.from("products").select("*").eq("id", id).single<Product>(),
       supabase.from("categories").select("*").order("sort_order"),
       supabase.from("carriers").select("*").order("sort_order"),
       supabase.from("profiles").select("*").eq("role", "staff").order("full_name"),
+      supabase.from("product_fees").select("amount").eq("product_id", id).maybeSingle(),
     ]);
 
   if (!product) notFound();
@@ -33,6 +34,7 @@ export default async function EditProductPage(props: {
           carriers={carriers ?? []}
           staffList={staffList ?? []}
           initial={product}
+          initialFee={feeRow?.amount ?? null}
         />
       </main>
     </>
