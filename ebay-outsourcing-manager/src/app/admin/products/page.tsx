@@ -20,11 +20,12 @@ export default async function ProductListPage(props: {
   const fShippedFrom = sp.shipped_from ?? "";
   const fShippedTo = sp.shipped_to ?? "";
   const fDeadlineTo = sp.deadline_to ?? "";
+  const fPickup = sp.pickup ?? "";
 
   let query = supabase
     .from("products")
     .select(
-      "id, control_number, name, status, arrival_date, ship_deadline, shipped_date, tracking_number, has_problem, category_id, assigned_staff_id"
+      "id, control_number, name, status, arrival_date, ship_deadline, shipped_date, tracking_number, has_problem, category_id, assigned_staff_id, pickup_status"
     )
     .order("created_at", { ascending: false });
 
@@ -39,6 +40,10 @@ export default async function ProductListPage(props: {
   if (fShippedFrom) query = query.gte("shipped_date", fShippedFrom);
   if (fShippedTo) query = query.lte("shipped_date", fShippedTo);
   if (fDeadlineTo) query = query.lte("ship_deadline", fDeadlineTo);
+  // ダッシュボードの「集荷手配待ち」からの遷移（Phase 7）
+  if (fPickup === "waiting") {
+    query = query.in("pickup_status", ["entered", "not_arranged"]).neq("status", "shipped");
+  }
 
   const [{ data: products }, { data: categories }, { data: staffList }] =
     await Promise.all([
@@ -167,6 +172,12 @@ export default async function ProductListPage(props: {
             </Link>
           </div>
         </form>
+
+        {fPickup === "waiting" && (
+          <p className="mb-2 rounded-lg bg-indigo-50 px-3 py-2 text-sm font-semibold text-indigo-800">
+            🚚 集荷手配待ちの商品を表示しています
+          </p>
+        )}
 
         <p className="mb-2 text-sm text-slate-500">{(products ?? []).length} 件</p>
 

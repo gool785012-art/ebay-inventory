@@ -12,7 +12,7 @@ export default async function AdminDashboard() {
   const { start, end } = monthRange(month);
 
   const [{ data: products }, { data: rewards }, { data: sharedLabels }] = await Promise.all([
-    supabase.from("products").select("id, status, has_problem"),
+    supabase.from("products").select("id, status, has_problem, pickup_status"),
     supabase
       .from("work_rewards")
       .select("reward_amount, payment_status")
@@ -29,6 +29,14 @@ export default async function AdminDashboard() {
   const sharedLabelSet = new Set((sharedLabels ?? []).map((d) => d.product_id));
   const labelWaitingCount = (products ?? []).filter(
     (p) => ["packed", "ready_to_ship"].includes(p.status) && !sharedLabelSet.has(p.id)
+  ).length;
+
+  // 集荷手配待ち: ラベル共有済み + スタッフが集荷可能日時を入力済み + まだ手配していない（Phase 7）
+  const pickupWaitingCount = (products ?? []).filter(
+    (p) =>
+      sharedLabelSet.has(p.id) &&
+      ["entered", "not_arranged"].includes(p.pickup_status) &&
+      p.status !== "shipped"
   ).length;
 
   const counts: Record<string, number> = {};
@@ -73,8 +81,15 @@ export default async function AdminDashboard() {
 
         {labelWaitingCount > 0 && (
           <Link href="/admin/products?status=packed"
-            className="mb-6 block rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800 transition hover:bg-amber-100">
+            className="mb-3 block rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800 transition hover:bg-amber-100">
             📄 発送ラベル待ち: {labelWaitingCount} 件（梱包が終わったのにラベルが未共有の商品があります。クリックで確認）
+          </Link>
+        )}
+
+        {pickupWaitingCount > 0 && (
+          <Link href="/admin/products?pickup=waiting"
+            className="mb-6 block rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm font-semibold text-indigo-800 transition hover:bg-indigo-100">
+            🚚 集荷手配待ち: {pickupWaitingCount} 件（スタッフが集荷可能日時を入力済みです。集荷を依頼してください）
           </Link>
         )}
 

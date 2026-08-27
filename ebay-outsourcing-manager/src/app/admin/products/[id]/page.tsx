@@ -9,8 +9,11 @@ import CommentForm from "@/components/CommentForm";
 import PhotoGallery from "@/components/PhotoGallery";
 import PhotoUpload from "@/components/PhotoUpload";
 import ShippingDocsAdmin from "@/components/ShippingDocsAdmin";
+import PickupAdmin from "@/components/PickupAdmin";
 import { requireProfile } from "@/lib/auth";
-import { statusLabel, paymentStatusLabel, documentTypeLabel } from "@/lib/constants";
+import {
+  statusLabel, paymentStatusLabel, documentTypeLabel, pickupStatusLabel,
+} from "@/lib/constants";
 import type { Product, Profile, ShippingDocument } from "@/types/db";
 
 function fmtDateTime(iso: string) {
@@ -47,6 +50,14 @@ function logText(log: {
     return `発送書類を「${log.old_value}」→「${log.new_value}」に差し替え`;
   if (log.action === "shipdoc_deleted")
     return `発送書類「${log.old_value}」を削除（${documentTypeLabel(log.field)}）`;
+  if (log.action === "pickup_available_set")
+    return `集荷可能日時を登録: ${log.new_value}`;
+  if (log.action === "pickup_available_changed")
+    return `集荷可能日時を「${log.old_value}」→「${log.new_value}」に変更`;
+  if (log.action === "pickup_confirmed_set")
+    return `集荷確定日時を登録: ${log.new_value}`;
+  if (log.action === "pickup_status_changed")
+    return `集荷手配「${pickupStatusLabel(log.old_value)}」→「${pickupStatusLabel(log.new_value)}」`;
   const fieldNames: Record<string, string> = {
     tracking_number: "追跡番号",
     shipped_date: "発送日",
@@ -230,6 +241,11 @@ export default async function ProductDetailPage(props: {
         {/* 発送書類（Phase 6） */}
         <div className="mt-4">
           <ShippingDocsAdmin productId={product.id} docs={docs} />
+        </div>
+
+        {/* 集荷手配（Phase 7） */}
+        <div className="mt-4">
+          <PickupAdmin product={product} carrierName={carrier?.name ?? ""} />
         </div>
 
         {/* 写真 */}
