@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { TURNTABLE_CHECKLIST } from "@/lib/constants";
+import { TURNTABLE_CHECKLIST, SHIP_CHECKLIST } from "@/lib/constants";
 import PhotoUpload from "@/components/PhotoUpload";
 import type { Carrier, Product } from "@/types/db";
 
@@ -165,6 +165,9 @@ export default function StaffWorkPanel({
   const allChecked =
     !requiresChecklist ||
     TURNTABLE_CHECKLIST.every((item) => checks[item.key] === true);
+
+  // 発送前チェック（要件9: 全部チェックするまで発送完了できない）
+  const allShipChecked = SHIP_CHECKLIST.every((item) => checks[item.key] === true);
 
   const inputCls =
     "w-full rounded-lg border border-slate-300 px-3 py-3 text-base outline-none focus:border-blue-500";
@@ -431,6 +434,11 @@ export default function StaffWorkPanel({
             <label className="mb-1 block text-sm font-semibold text-slate-600">追跡番号</label>
             <input value={tracking} onChange={(e) => setTracking(e.target.value)}
               placeholder="送り状の番号" className={`${inputCls} font-mono`} />
+            {product.tracking_number && (
+              <p className="mt-1 text-xs text-amber-600">
+                ※ 追跡番号は登録済みです（{product.tracking_number}）。発送ラベルの番号と一致しているか確認してください。
+              </p>
+            )}
           </div>
           <div>
             <label className="mb-1 block text-sm font-semibold text-slate-600">発送日</label>
@@ -439,13 +447,52 @@ export default function StaffWorkPanel({
           </div>
           <div>
             <p className="mb-1 text-sm font-semibold text-slate-600">
-              発送ラベルの写真（{photoCounts["label"] ?? 0}枚）
+              発送ラベル貼付後の写真（{photoCounts["label_attached"] ?? 0}枚）
             </p>
-            <PhotoUpload productId={product.id} category="label" />
+            <PhotoUpload productId={product.id} category="label_attached" />
           </div>
+
+          {/* 発送前チェック（要件9: 全項目チェックで発送完了ボタンが有効に） */}
+          <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
+            <p className="mb-2 text-sm font-bold text-blue-800">
+              ✅ 発送前チェック（全項目必須）
+            </p>
+            <div className="space-y-1">
+              {SHIP_CHECKLIST.map((item) => (
+                <label
+                  key={item.key}
+                  className="flex cursor-pointer items-center gap-3 rounded-lg bg-white px-3 py-2.5"
+                >
+                  <input
+                    type="checkbox"
+                    checked={checks[item.key] === true}
+                    onChange={(e) => toggleCheck(item.key, e.target.checked)}
+                    className="h-5 w-5"
+                  />
+                  <span className="text-sm font-semibold text-slate-700">{item.label}</span>
+                </label>
+              ))}
+            </div>
+            {!allShipChecked && (
+              <p className="mt-2 text-xs font-bold text-blue-700">
+                すべてチェックすると「発送完了」を押せます
+              </p>
+            )}
+          </div>
+
           <button
-            disabled={saving || !carrierId || !tracking.trim() || !shippedDate}
+            disabled={saving || !carrierId || !tracking.trim() || !shippedDate || !allShipChecked}
             onClick={() => {
+              // 追跡番号の上書き事故防止（要件15）
+              if (
+                product.tracking_number &&
+                tracking.trim() !== product.tracking_number &&
+                !window.confirm(
+                  `追跡番号がすでに「${product.tracking_number}」で登録されています。\n「${tracking.trim()}」に上書きしますか？`
+                )
+              ) {
+                return;
+              }
               if (!window.confirm("発送済みにします。よろしいですか？")) return;
               updateProduct(
                 {

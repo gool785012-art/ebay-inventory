@@ -24,6 +24,7 @@
    （テーブル・アクセス権限・初期カテゴリー・発送会社がすべて作成されます）
 5. **写真保存の設定（Phase 3以降で必要）**: 同じ手順で `ebay-outsourcing-manager/supabase/migrations/0002_storage.sql` の内容も貼り付けて「Run」してください（写真の保存場所と閲覧権限が作成されます）
 6. **報酬管理の設定（Phase 5以降で必要）**: 同じ手順で `ebay-outsourcing-manager/supabase/migrations/0003_rewards.sql` の内容も貼り付けて「Run」してください（報酬の自動確定・支払管理・変更履歴が作成されます）
+7. **発送ラベル共有の設定（Phase 6以降で必要）**: 同じ手順で `ebay-outsourcing-manager/supabase/migrations/0004_shipping_documents.sql` の内容も貼り付けて「Run」してください（発送書類の保存場所・共有管理・アクセス制御が作成されます）
 
 ## 手順C: 管理者アカウント（あなた自身）を作る
 

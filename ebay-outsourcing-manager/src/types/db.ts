@@ -37,6 +37,7 @@ export type Product = {
   ship_deadline: string | null;
   shipped_date: string | null;
   carrier_id: number | null;
+  shipping_method: string;
   tracking_number: string;
   weight_kg: number | null;
   length_cm: number | null;
@@ -62,6 +63,20 @@ export type WorkReward = {
   payment_status: "unpaid" | "paid" | "on_hold";
   paid_at: string | null;
   memo: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ShippingDocument = {
+  id: string;
+  product_id: string;
+  document_type: string;
+  file_name: string;
+  file_path: string;
+  uploaded_by: string | null;
+  shared_at: string | null;
+  confirmed_at: string | null;
+  confirmed_by: string | null;
   created_at: string;
   updated_at: string;
 };

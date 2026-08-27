@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { STATUSES } from "@/lib/constants";
+import { STATUSES, SHIPPING_METHODS } from "@/lib/constants";
 import type { Category, Carrier, Product, Profile } from "@/types/db";
 
 // 商品登録・編集フォーム（管理者用）。
@@ -34,6 +34,7 @@ export default function ProductForm({
     ship_deadline: initial?.ship_deadline ?? "",
     shipped_date: initial?.shipped_date ?? "",
     carrier_id: initial?.carrier_id?.toString() ?? "",
+    shipping_method: initial?.shipping_method ?? "",
     tracking_number: initial?.tracking_number ?? "",
     weight_kg: initial?.weight_kg?.toString() ?? "",
     length_cm: initial?.length_cm?.toString() ?? "",
@@ -104,6 +105,7 @@ export default function ProductForm({
       ship_deadline: form.ship_deadline || null,
       shipped_date: form.shipped_date || null,
       carrier_id: form.carrier_id ? Number(form.carrier_id) : null,
+      shipping_method: form.shipping_method,
       tracking_number: form.tracking_number.trim(),
       weight_kg: form.weight_kg ? Number(form.weight_kg) : null,
       length_cm: form.length_cm ? Number(form.length_cm) : null,
@@ -304,6 +306,25 @@ export default function ProductForm({
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>
+          </div>
+          <div>
+            <label className={labelCls}>発送方法（任意）</label>
+            {(() => {
+              const carrierName = carriers.find((c) => c.id === Number(form.carrier_id))?.name ?? "";
+              const methods = SHIPPING_METHODS[carrierName] ?? ["その他"];
+              const options = form.shipping_method && !methods.includes(form.shipping_method)
+                ? [form.shipping_method, ...methods]
+                : methods;
+              return (
+                <select value={form.shipping_method}
+                  onChange={(e) => set("shipping_method", e.target.value)} className={inputCls}>
+                  <option value="">未選択</option>
+                  {options.map((m) => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+              );
+            })()}
           </div>
           <div>
             <label className={labelCls}>追跡番号</label>
