@@ -6,8 +6,9 @@ import DeadlineBadge from "@/components/DeadlineBadge";
 import StaffWorkPanel from "@/components/StaffWorkPanel";
 import PhotoGallery from "@/components/PhotoGallery";
 import CommentForm from "@/components/CommentForm";
+import ShippingDocsStaff from "@/components/ShippingDocsStaff";
 import { requireProfile } from "@/lib/auth";
-import type { Product, Profile } from "@/types/db";
+import type { Product, Profile, ShippingDocument } from "@/types/db";
 
 function fmtDateTime(iso: string) {
   return new Date(iso).toLocaleString("ja-JP", {
@@ -29,6 +30,7 @@ export default async function StaffProductPage(props: {
     { data: comments },
     { data: checklistRows },
     { data: carriers },
+    { data: shipDocs },
   ] = await Promise.all([
     supabase.from("products").select("*").eq("id", id).single<Product>(),
     supabase
@@ -46,9 +48,17 @@ export default async function StaffProductPage(props: {
       .select("item_key, checked")
       .eq("product_id", id),
     supabase.from("carriers").select("*").order("sort_order"),
+    supabase
+      .from("shipping_documents")
+      .select("*")
+      .eq("product_id", id)
+      .order("created_at"),
   ]);
 
   if (!product) notFound();
+
+  const carrierName =
+    (carriers ?? []).find((c) => c.id === product.carrier_id)?.name ?? "";
 
   const { data: category } = product.category_id
     ? await supabase
@@ -96,6 +106,17 @@ export default async function StaffProductPage(props: {
               📌 {product.notes}
             </div>
           )}
+        </div>
+
+        {/* 発送ラベル・発送書類（管理者が共有したものだけ表示される） */}
+        <div className="mb-4">
+          <ShippingDocsStaff
+            docs={(shipDocs ?? []) as ShippingDocument[]}
+            controlNumber={product.control_number}
+            productName={product.name}
+            carrierName={carrierName}
+            trackingNumber={product.tracking_number}
+          />
         </div>
 
         {/* 作業STEP */}

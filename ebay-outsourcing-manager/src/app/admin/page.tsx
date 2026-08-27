@@ -11,14 +11,25 @@ export default async function AdminDashboard() {
   const month = parseMonth(undefined);
   const { start, end } = monthRange(month);
 
-  const [{ data: products }, { data: rewards }] = await Promise.all([
+  const [{ data: products }, { data: rewards }, { data: sharedLabels }] = await Promise.all([
     supabase.from("products").select("id, status, has_problem"),
     supabase
       .from("work_rewards")
       .select("reward_amount, payment_status")
       .gte("completed_at", start)
       .lt("completed_at", end),
+    supabase
+      .from("shipping_documents")
+      .select("product_id")
+      .eq("document_type", "label")
+      .not("shared_at", "is", null),
   ]);
+
+  // 発送ラベル待ち: 梱包完了・発送待ちなのにラベルが未共有の商品（Phase 6）
+  const sharedLabelSet = new Set((sharedLabels ?? []).map((d) => d.product_id));
+  const labelWaitingCount = (products ?? []).filter(
+    (p) => ["packed", "ready_to_ship"].includes(p.status) && !sharedLabelSet.has(p.id)
+  ).length;
 
   const counts: Record<string, number> = {};
   for (const s of STATUSES) counts[s.key] = 0;
@@ -58,6 +69,13 @@ export default async function AdminDashboard() {
           <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
             ⚠️ 問題が報告されている商品が {problemCount} 件あります
           </div>
+        )}
+
+        {labelWaitingCount > 0 && (
+          <Link href="/admin/products?status=packed"
+            className="mb-6 block rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800 transition hover:bg-amber-100">
+            📄 発送ラベル待ち: {labelWaitingCount} 件（梱包が終わったのにラベルが未共有の商品があります。クリックで確認）
+          </Link>
         )}
 
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">

@@ -8,9 +8,10 @@ import ProductQuickActions from "@/components/ProductQuickActions";
 import CommentForm from "@/components/CommentForm";
 import PhotoGallery from "@/components/PhotoGallery";
 import PhotoUpload from "@/components/PhotoUpload";
+import ShippingDocsAdmin from "@/components/ShippingDocsAdmin";
 import { requireProfile } from "@/lib/auth";
-import { statusLabel, paymentStatusLabel } from "@/lib/constants";
-import type { Product, Profile } from "@/types/db";
+import { statusLabel, paymentStatusLabel, documentTypeLabel } from "@/lib/constants";
+import type { Product, Profile, ShippingDocument } from "@/types/db";
 
 function fmtDateTime(iso: string) {
   return new Date(iso).toLocaleString("ja-JP", {
@@ -36,6 +37,16 @@ function logText(log: {
     const to = log.new_value ? nameOf(log.new_value) : "未割当";
     return `担当者「${from}」→「${to}」`;
   }
+  if (log.action === "shipdoc_uploaded")
+    return `発送書類「${log.new_value}」をアップロード（${documentTypeLabel(log.field)}）`;
+  if (log.action === "shipdoc_shared")
+    return `発送書類「${log.new_value}」をスタッフへ共有（${documentTypeLabel(log.field)}）`;
+  if (log.action === "shipdoc_confirmed")
+    return `発送書類「${log.new_value}」を確認しました（${documentTypeLabel(log.field)}）`;
+  if (log.action === "shipdoc_replaced")
+    return `発送書類を「${log.old_value}」→「${log.new_value}」に差し替え`;
+  if (log.action === "shipdoc_deleted")
+    return `発送書類「${log.old_value}」を削除（${documentTypeLabel(log.field)}）`;
   const fieldNames: Record<string, string> = {
     tracking_number: "追跡番号",
     shipped_date: "発送日",
@@ -60,6 +71,7 @@ export default async function ProductDetailPage(props: {
     { data: categories },
     { data: carriers },
     { data: photos },
+    { data: shipDocs },
   ] = await Promise.all([
     supabase.from("products").select("*").eq("id", id).single<Product>(),
     supabase
@@ -80,9 +92,28 @@ export default async function ProductDetailPage(props: {
       .select("id, photo_category, storage_path, created_at")
       .eq("product_id", id)
       .order("created_at"),
+    supabase
+      .from("shipping_documents")
+      .select("*")
+      .eq("product_id", id)
+      .order("created_at"),
   ]);
 
   if (!product) notFound();
+
+  // 発送ラベルの共有状態（要件6）
+  const docs = (shipDocs ?? []) as ShippingDocument[];
+  const labelDocs = docs.filter((d) => d.document_type === "label");
+  const labelStatus =
+    product.status === "shipped"
+      ? { label: "発送完了", cls: "border-green-300 bg-green-100 text-green-800" }
+      : labelDocs.some((d) => d.confirmed_at)
+        ? { label: "ラベル: スタッフ確認済み", cls: "border-teal-200 bg-teal-50 text-teal-700" }
+        : labelDocs.some((d) => d.shared_at)
+          ? { label: "ラベル: 共有済み", cls: "border-blue-200 bg-blue-50 text-blue-700" }
+          : labelDocs.length > 0
+            ? { label: "ラベル: アップロード済み（未共有）", cls: "border-yellow-200 bg-yellow-50 text-yellow-700" }
+            : { label: "ラベル: 未作成", cls: "border-slate-300 bg-slate-100 text-slate-500" };
 
   const profileMap = new Map((allProfiles ?? []).map((p: Profile) => [p.id, p]));
   const nameOf = (uid: string) =>
@@ -109,6 +140,9 @@ export default async function ProductDetailPage(props: {
             </span>
             <StatusBadge status={product.status} />
             <DeadlineBadge shipDeadline={product.ship_deadline} status={product.status} />
+            <span className={`rounded-full border px-2.5 py-0.5 text-xs font-bold ${labelStatus.cls}`}>
+              📄 {labelStatus.label}
+            </span>
             {product.has_problem && (
               <span className="rounded-full border border-red-300 bg-red-100 px-2.5 py-0.5 text-xs font-bold text-red-700">
                 ⚠ 問題報告あり
@@ -175,6 +209,7 @@ export default async function ProductDetailPage(props: {
             <div><span className="text-slate-400">発送期限: </span>{product.ship_deadline ?? "—"}</div>
             <div><span className="text-slate-400">発送日: </span>{product.shipped_date ?? "—"}</div>
             <div><span className="text-slate-400">発送会社: </span>{carrier?.name ?? "—"}</div>
+            <div><span className="text-slate-400">発送方法: </span>{product.shipping_method || "—"}</div>
             <div>
               <span className="text-slate-400">追跡番号: </span>
               <span className="font-mono">{product.tracking_number || "—"}</span>
@@ -190,6 +225,11 @@ export default async function ProductDetailPage(props: {
                 : "—"}
             </div>
           </div>
+        </div>
+
+        {/* 発送書類（Phase 6） */}
+        <div className="mt-4">
+          <ShippingDocsAdmin productId={product.id} docs={docs} />
         </div>
 
         {/* 写真 */}

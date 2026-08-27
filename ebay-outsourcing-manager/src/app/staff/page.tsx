@@ -7,9 +7,18 @@ export default async function StaffHome() {
   const { supabase, profile } = await requireProfile("staff");
 
   // RLSにより自分の担当商品しか返ってこない
-  const { data: products } = await supabase
-    .from("products")
-    .select("id, control_number, name, status");
+  const [{ data: products }, { data: unconfirmedLabels }] = await Promise.all([
+    supabase.from("products").select("id, control_number, name, status"),
+    // 共有済みでまだ確認していない発送ラベル（RLSで自分の分だけ返る）
+    supabase
+      .from("shipping_documents")
+      .select("product_id")
+      .eq("document_type", "label")
+      .is("confirmed_at", null),
+  ]);
+
+  const labelWaitingIds = new Set((unconfirmedLabels ?? []).map((d) => d.product_id));
+  const labelWaitingProducts = (products ?? []).filter((p) => labelWaitingIds.has(p.id));
 
   const byStatus = (keys: string[]) =>
     (products ?? []).filter((p) => keys.includes(p.status));
@@ -35,6 +44,26 @@ export default async function StaffHome() {
             ? `本日の作業が ${totalTodo} 件あります`
             : "現在、担当している作業はありません"}
         </p>
+
+        {labelWaitingProducts.length > 0 && (
+          <div className="mb-4 rounded-xl border-2 border-blue-300 bg-blue-50 p-4">
+            <p className="mb-2 text-sm font-bold text-blue-800">
+              📄 ラベル確認待ち: {labelWaitingProducts.length} 件
+            </p>
+            <ul className="space-y-2">
+              {labelWaitingProducts.map((p) => (
+                <li key={p.id}>
+                  <Link href={`/staff/products/${p.id}`}
+                    className="flex items-center rounded-lg bg-white px-3 py-3 text-sm shadow-sm transition active:bg-slate-50">
+                    <span className="font-mono text-xs text-slate-400">{p.control_number}</span>
+                    <span className="ml-2 flex-1 font-semibold text-slate-700">{p.name}</span>
+                    <span className="font-bold text-blue-600">ラベルを確認 →</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         <div className="space-y-4">
           {workGroups.map((g) => (

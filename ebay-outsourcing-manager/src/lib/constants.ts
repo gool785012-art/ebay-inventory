@@ -33,6 +33,7 @@ export const PHOTO_CATEGORIES = [
   { key: "packing",        label: "梱包途中" },
   { key: "packed",         label: "梱包完了" },
   { key: "label",          label: "発送ラベル" },
+  { key: "label_attached", label: "発送ラベル貼付後" },
   { key: "other",          label: "その他" },
 ] as const;
 
@@ -79,3 +80,36 @@ export function fmtYen(n: number | null | undefined): string {
   if (n == null || isNaN(n)) return "—";
   return n.toLocaleString("ja-JP") + "円";
 }
+
+// ─── 発送ラベル共有（Phase 6） ─────────────────────────────────
+
+// 発送書類の種類
+export const DOCUMENT_TYPES = [
+  { key: "label",              label: "発送ラベル" },
+  { key: "commercial_invoice", label: "Commercial Invoice" },
+  { key: "customs_form",       label: "税関申告書" },
+  { key: "postal_form",        label: "国際郵便書類" },
+  { key: "signature_doc",      label: "署名書類" },
+  { key: "other",              label: "その他" },
+] as const;
+
+export function documentTypeLabel(key: string): string {
+  return DOCUMENT_TYPES.find((d) => d.key === key)?.label ?? key;
+}
+
+// 発送会社ごとの発送方法（任意項目）
+export const SHIPPING_METHODS: Record<string, string[]> = {
+  "FedEx": ["International Priority", "International Economy", "その他"],
+  "DHL": ["Express Worldwide", "その他"],
+  "Japan Post": ["EMS", "国際小包", "国際eパケット", "Small Packet", "その他"],
+};
+
+// 発送前チェックリスト（要件9: すべて確認しないと発送完了できない）
+export const SHIP_CHECKLIST = [
+  { key: "ship_carrier_checked",  label: "発送会社を確認した" },
+  { key: "ship_label_checked",    label: "発送ラベルを確認した" },
+  { key: "ship_item_matches",     label: "ラベルの商品と実際の商品が一致している" },
+  { key: "ship_tracking_checked", label: "ラベルの追跡番号を確認した" },
+  { key: "ship_label_attached",   label: "ラベルを正しく貼った" },
+  { key: "ship_photo_taken",      label: "発送ラベル貼付後の写真を撮影した" },
+] as const;
