@@ -1,24 +1,50 @@
 import Link from "next/link";
 import AppHeader from "@/components/AppHeader";
 import { requireProfile } from "@/lib/auth";
+import { fmtTime } from "@/lib/constants";
 
 // 外注スタッフ用トップページ（要件22: 「次にやる作業」がすぐ分かる画面）
 export default async function StaffHome() {
   const { supabase, profile } = await requireProfile("staff");
 
   // RLSにより自分の担当商品しか返ってこない
-  const [{ data: products }, { data: unconfirmedLabels }] = await Promise.all([
-    supabase.from("products").select("id, control_number, name, status"),
-    // 共有済みでまだ確認していない発送ラベル（RLSで自分の分だけ返る）
-    supabase
-      .from("shipping_documents")
-      .select("product_id")
-      .eq("document_type", "label")
-      .is("confirmed_at", null),
-  ]);
+  const [{ data: products }, { data: unconfirmedLabels }, { data: sharedLabels }, { data: carriers }] =
+    await Promise.all([
+      supabase
+        .from("products")
+        .select(
+          "id, control_number, name, status, carrier_id, handover_method, pickup_status, pickup_available_date, pickup_confirmed_date, pickup_confirmed_from, pickup_confirmed_to"
+        ),
+      // 共有済みでまだ確認していない発送ラベル（RLSで自分の分だけ返る）
+      supabase
+        .from("shipping_documents")
+        .select("product_id")
+        .eq("document_type", "label")
+        .is("confirmed_at", null),
+      supabase.from("shipping_documents").select("product_id").eq("document_type", "label"),
+      supabase.from("carriers").select("id, name"),
+    ]);
 
   const labelWaitingIds = new Set((unconfirmedLabels ?? []).map((d) => d.product_id));
   const labelWaitingProducts = (products ?? []).filter((p) => labelWaitingIds.has(p.id));
+
+  const carrierMap = new Map((carriers ?? []).map((c) => [c.id, c.name]));
+  const today = new Date().toISOString().slice(0, 10);
+
+  // 本日の集荷（Phase 7）
+  const todayPickups = (products ?? []).filter(
+    (p) => p.pickup_confirmed_date === today && p.status !== "shipped"
+  );
+
+  // 集荷日時の入力待ち: ラベルが共有済みなのに集荷可能日時が未入力
+  const sharedLabelIds = new Set((sharedLabels ?? []).map((d) => d.product_id));
+  const pickupInputWaiting = (products ?? []).filter(
+    (p) =>
+      sharedLabelIds.has(p.id) &&
+      p.handover_method === "pickup" &&
+      !p.pickup_available_date &&
+      p.status !== "shipped"
+  );
 
   const byStatus = (keys: string[]) =>
     (products ?? []).filter((p) => keys.includes(p.status));
@@ -44,6 +70,49 @@ export default async function StaffHome() {
             ? `本日の作業が ${totalTodo} 件あります`
             : "現在、担当している作業はありません"}
         </p>
+
+        {/* 本日の集荷（Phase 7・一番目立つ位置） */}
+        {todayPickups.length > 0 && (
+          <div className="mb-4 rounded-xl border-2 border-green-400 bg-green-50 p-4">
+            <p className="mb-2 text-sm font-bold text-green-800">🚚 本日の集荷</p>
+            <ul className="space-y-2">
+              {todayPickups.map((p) => (
+                <li key={p.id}>
+                  <Link href={`/staff/products/${p.id}`}
+                    className="block rounded-lg bg-white px-3 py-3 shadow-sm transition active:bg-slate-50">
+                    <div className="text-lg font-bold text-green-900">
+                      {carrierMap.get(p.carrier_id) ?? "配送業者"}{" "}
+                      {fmtTime(p.pickup_confirmed_from)}〜{fmtTime(p.pickup_confirmed_to)}
+                    </div>
+                    <div className="text-sm font-semibold text-slate-700">{p.name}</div>
+                    <div className="font-mono text-xs text-slate-400">{p.control_number}</div>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* 集荷可能日時の入力待ち */}
+        {pickupInputWaiting.length > 0 && (
+          <div className="mb-4 rounded-xl border-2 border-amber-300 bg-amber-50 p-4">
+            <p className="mb-2 text-sm font-bold text-amber-800">
+              🚚 集荷可能日時の入力待ち: {pickupInputWaiting.length} 件
+            </p>
+            <ul className="space-y-2">
+              {pickupInputWaiting.map((p) => (
+                <li key={p.id}>
+                  <Link href={`/staff/products/${p.id}`}
+                    className="flex items-center rounded-lg bg-white px-3 py-3 text-sm shadow-sm transition active:bg-slate-50">
+                    <span className="font-mono text-xs text-slate-400">{p.control_number}</span>
+                    <span className="ml-2 flex-1 font-semibold text-slate-700">{p.name}</span>
+                    <span className="font-bold text-amber-700">日時を入力 →</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         {labelWaitingProducts.length > 0 && (
           <div className="mb-4 rounded-xl border-2 border-blue-300 bg-blue-50 p-4">

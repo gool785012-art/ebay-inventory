@@ -113,3 +113,61 @@ export const SHIP_CHECKLIST = [
   { key: "ship_label_attached",   label: "ラベルを正しく貼った" },
   { key: "ship_photo_taken",      label: "発送ラベル貼付後の写真を撮影した" },
 ] as const;
+
+// ─── 集荷管理（Phase 7） ───────────────────────────────────────
+
+// 荷物の受け渡し方法
+export const HANDOVER_METHODS = [
+  { key: "pickup",  label: "集荷" },
+  { key: "dropoff", label: "持ち込み" },
+] as const;
+
+export function handoverLabel(key: string): string {
+  return HANDOVER_METHODS.find((h) => h.key === key)?.label ?? key;
+}
+
+// 発送会社ごとの受け渡し方法の選択肢
+// FedEx / DHL は集荷が基本、国際郵便・その他は持ち込みも選べる
+export function handoverOptions(carrierName: string) {
+  if (carrierName === "FedEx" || carrierName === "DHL") {
+    return HANDOVER_METHODS.filter((h) => h.key === "pickup");
+  }
+  return HANDOVER_METHODS;
+}
+
+// 集荷手配ステータス
+export const PICKUP_STATUSES = [
+  { key: "not_entered",  label: "集荷日時未入力",     badge: "bg-gray-100 text-gray-500 border-gray-300" },
+  { key: "entered",      label: "集荷可能日時入力済み", badge: "bg-blue-50 text-blue-700 border-blue-200" },
+  { key: "not_arranged", label: "集荷未手配",         badge: "bg-amber-50 text-amber-700 border-amber-200" },
+  { key: "arranged",     label: "集荷手配済み",       badge: "bg-indigo-50 text-indigo-700 border-indigo-200" },
+  { key: "completed",    label: "集荷完了",           badge: "bg-green-50 text-green-700 border-green-200" },
+  { key: "dropoff",      label: "持ち込み発送",       badge: "bg-slate-100 text-slate-600 border-slate-300" },
+] as const;
+
+export function pickupStatusLabel(key: string): string {
+  return PICKUP_STATUSES.find((s) => s.key === key)?.label ?? key;
+}
+
+export function pickupBadgeClass(key: string): string {
+  return PICKUP_STATUSES.find((s) => s.key === key)?.badge ?? "bg-gray-100 text-gray-500 border-gray-300";
+}
+
+// 時刻表示（"14:00:00" → "14:00"）
+export function fmtTime(t: string | null): string {
+  if (!t) return "";
+  return t.slice(0, 5);
+}
+
+// 集荷日時のまとめ表示（例: "8月28日 14:00〜18:00"）
+export function fmtPickupRange(
+  date: string | null,
+  from: string | null,
+  to: string | null
+): string {
+  if (!date) return "";
+  const [, m, d] = date.split("-");
+  const day = `${Number(m)}月${Number(d)}日`;
+  if (!from) return day;
+  return `${day} ${fmtTime(from)}〜${fmtTime(to)}`;
+}

@@ -52,6 +52,17 @@ export type Product = {
   created_by: string | null;
   created_at: string;
   updated_at: string;
+  // 集荷管理（Phase 7）
+  handover_method: string;
+  pickup_available_date: string | null;
+  pickup_available_from: string | null;
+  pickup_available_to: string | null;
+  pickup_staff_note: string;
+  pickup_status: string;
+  pickup_confirmed_date: string | null;
+  pickup_confirmed_from: string | null;
+  pickup_confirmed_to: string | null;
+  pickup_admin_note: string;
 };
 
 export type WorkReward = {

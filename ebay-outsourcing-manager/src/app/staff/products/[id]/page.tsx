@@ -7,6 +7,7 @@ import StaffWorkPanel from "@/components/StaffWorkPanel";
 import PhotoGallery from "@/components/PhotoGallery";
 import CommentForm from "@/components/CommentForm";
 import ShippingDocsStaff from "@/components/ShippingDocsStaff";
+import PickupStaff from "@/components/PickupStaff";
 import { requireProfile } from "@/lib/auth";
 import type { Product, Profile, ShippingDocument } from "@/types/db";
 
@@ -116,6 +117,17 @@ export default async function StaffProductPage(props: {
             productName={product.name}
             carrierName={carrierName}
             trackingNumber={product.tracking_number}
+          />
+        </div>
+
+        {/* 集荷可能日時（Phase 7） */}
+        <div className="mb-4">
+          <PickupStaff
+            product={product}
+            carrierName={carrierName}
+            labelConfirmed={(shipDocs ?? []).some(
+              (d: ShippingDocument) => d.document_type === "label" && d.confirmed_at
+            )}
           />
         </div>
 
