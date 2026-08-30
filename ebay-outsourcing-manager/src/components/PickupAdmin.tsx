@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { sendNotification } from "@/lib/notify-client";
 import {
   PICKUP_STATUSES, pickupStatusLabel, pickupBadgeClass,
   fmtPickupRange, fmtTime, handoverLabel,
@@ -53,6 +54,8 @@ export default function PickupAdmin({
       .eq("id", product.id);
     setSaving(false);
     if (err) { setError("保存に失敗しました: " + err.message); return; }
+    // 集荷日時が確定したことをスタッフへ通知
+    await sendNotification("pickup_confirmed", product.id);
     setStatus("arranged");
     setOpen(false);
     router.refresh();

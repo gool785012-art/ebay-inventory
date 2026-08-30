@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { sendNotification } from "@/lib/notify-client";
 import { TURNTABLE_CHECKLIST, SHIP_CHECKLIST } from "@/lib/constants";
 import PhotoUpload from "@/components/PhotoUpload";
 import type { Carrier, Product } from "@/types/db";
@@ -104,7 +105,11 @@ export default function StaffWorkPanel({
     Object.fromEntries(checklistRows.map((r) => [r.item_key, r.checked]))
   );
 
-  async function updateProduct(payload: Record<string, unknown>, doneMsg?: string) {
+  async function updateProduct(
+    payload: Record<string, unknown>,
+    doneMsg?: string,
+    notifyEvent?: { event: string; extra?: string }
+  ) {
     setSaving(true);
     setError("");
     const supabase = createClient();
@@ -116,6 +121,9 @@ export default function StaffWorkPanel({
     if (err) {
       setError("保存に失敗しました: " + err.message);
       return false;
+    }
+    if (notifyEvent) {
+      await sendNotification(notifyEvent.event, product.id, notifyEvent.extra);
     }
     if (doneMsg) alert(doneMsg);
     router.refresh();
@@ -501,7 +509,8 @@ export default function StaffWorkPanel({
                   shipped_date: shippedDate,
                   status: "shipped",
                 },
-                "お疲れさまでした！発送完了を報告しました"
+                "お疲れさまでした！発送完了を報告しました",
+                { event: "shipped" }
               );
             }}
             className="w-full rounded-lg bg-green-600 py-4 text-base font-bold text-white transition hover:bg-green-700 disabled:opacity-40"
@@ -545,7 +554,8 @@ export default function StaffWorkPanel({
                       problem_note: problemNote.trim(),
                       status: "problem",
                     },
-                    "問題を報告しました。管理者に通知されます。"
+                    "問題を報告しました。管理者に通知されます。",
+                    { event: "problem_reported", extra: problemNote.trim() }
                   ).then((ok) => ok && setProblemOpen(false))
                 }
                 className="flex-1 rounded-lg bg-red-600 py-3 text-base font-bold text-white hover:bg-red-700 disabled:opacity-40"

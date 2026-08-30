@@ -27,6 +27,54 @@
 7. **発送ラベル共有の設定（Phase 6以降で必要）**: 同じ手順で `ebay-outsourcing-manager/supabase/migrations/0004_shipping_documents.sql` の内容も貼り付けて「Run」してください（発送書類の保存場所・共有管理・アクセス制御が作成されます）
 8. **集荷管理の設定（Phase 7以降で必要）**: 同じ手順で `ebay-outsourcing-manager/supabase/migrations/0005_pickup.sql` の内容も貼り付けて「Run」してください（集荷可能日時・集荷手配ステータス・集荷確定日時が使えるようになります）
 
+---
+
+## 手順H: Chatwork通知の設定（任意・Phase 8）
+
+設定しなくてもアプリは正常に動きます。通知が必要な場合のみ行ってください。
+
+### H-1. ChatworkのAPIトークンを取得する
+
+1. https://www.chatwork.com にログイン
+2. 右上のアカウント名（アイコン）をクリック →「**サービス連携**」
+3. 左メニューの「**API Token**」をクリック
+4. Chatworkのパスワードを入力して「表示」
+5. 表示された文字列（英数字の羅列）をコピーしてメモ帳に保存
+
+### H-2. 通知したいチャットのルームIDを調べる
+
+1. Chatworkで、スタッフとの共通チャット（通知を送りたいチャット）を開く
+2. ブラウザのアドレスバーを見る（例: `https://www.chatwork.com/#!rid123456789`）
+3. `rid` の後ろの数字（この例では `123456789`）をメモ帳に保存
+
+### H-3. Vercelに設定する
+
+1. https://vercel.com → プロジェクト `ebay-inventory-4tzs` を開く
+2. 左メニューの「**Environment Variables**」をクリック
+3. 右上の「**Add Environment Variable**」をクリックし、以下を1つずつ追加（**「Sensitive」のスイッチは必ずOFF**にしてください）
+
+| Key | Value |
+|-----|-------|
+| `CHATWORK_API_TOKEN` | H-1でコピーしたトークン |
+| `CHATWORK_ROOM_ID` | H-2で調べた数字 |
+| `NEXT_PUBLIC_APP_URL` | `https://ebay-inventory-4tzs.vercel.app` |
+
+4. 3つとも追加したら、左メニュー「**Deployments**」→ 一番上の「...」→「**Redeploy**」
+
+### H-4. 動作確認
+
+管理者でログインして、どれかの商品にコメントを書いてみてください。Chatworkの指定したチャットに通知が届けば成功です。
+
+### 通知されるタイミング
+
+- 仕入れ先から外注先へ発送した（ステータスを「外注先へ発送済み」に変更）
+- 発送ラベルをスタッフへ共有した
+- 集荷日時が確定した
+- コメントが投稿された
+- スタッフが問題を報告した
+- スタッフが集荷可能日時を入力した
+- スタッフが発送完了した
+
 ## 手順C: 管理者アカウント（あなた自身）を作る
 
 1. 左メニュー「**Authentication**」→「**Users**」→「**Add user**」→「**Create new user**」

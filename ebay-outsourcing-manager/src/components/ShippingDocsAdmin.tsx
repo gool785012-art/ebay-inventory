@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { sendNotification } from "@/lib/notify-client";
 import { DOCUMENT_TYPES, documentTypeLabel } from "@/lib/constants";
 import type { ShippingDocument } from "@/types/db";
 
@@ -121,6 +122,7 @@ export default function ShippingDocsAdmin({
       .update({ shared_at: new Date().toISOString() })
       .eq("id", doc.id);
     if (err) { setError("共有に失敗しました: " + err.message); return; }
+    await sendNotification("label_shared", productId, doc.document_type);
     router.refresh();
   }
 
