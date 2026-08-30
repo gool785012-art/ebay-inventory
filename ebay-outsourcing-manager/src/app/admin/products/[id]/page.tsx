@@ -10,6 +10,7 @@ import PhotoGallery from "@/components/PhotoGallery";
 import PhotoUpload from "@/components/PhotoUpload";
 import ShippingDocsAdmin from "@/components/ShippingDocsAdmin";
 import PickupAdmin from "@/components/PickupAdmin";
+import RewardSettings from "@/components/RewardSettings";
 import { requireProfile } from "@/lib/auth";
 import {
   statusLabel, paymentStatusLabel, documentTypeLabel, pickupStatusLabel,
@@ -83,6 +84,7 @@ export default async function ProductDetailPage(props: {
     { data: carriers },
     { data: photos },
     { data: shipDocs },
+    { data: feeRow },
   ] = await Promise.all([
     supabase.from("products").select("*").eq("id", id).single<Product>(),
     supabase
@@ -108,6 +110,7 @@ export default async function ProductDetailPage(props: {
       .select("*")
       .eq("product_id", id)
       .order("created_at"),
+    supabase.from("product_fees").select("amount").eq("product_id", id).maybeSingle(),
   ]);
 
   if (!product) notFound();
@@ -241,6 +244,15 @@ export default async function ProductDetailPage(props: {
         {/* 発送書類（Phase 6） */}
         <div className="mt-4">
           <ShippingDocsAdmin productId={product.id} docs={docs} />
+        </div>
+
+        {/* 追加作業と報酬（Phase 9） */}
+        <div className="mt-4">
+          <RewardSettings
+            product={product}
+            packingReward={feeRow?.amount ?? category?.default_fee ?? 0}
+            packingLabel={`${category?.name ?? "商品"} 梱包`}
+          />
         </div>
 
         {/* 集荷手配（Phase 7） */}

@@ -63,6 +63,14 @@ export type Product = {
   pickup_confirmed_from: string | null;
   pickup_confirmed_to: string | null;
   pickup_admin_note: string;
+  // 追加作業・報酬（Phase 9）
+  photo_required: boolean;
+  operation_check_required: boolean;
+  handover_reward: number;
+  reimbursement: number;
+  reimbursement_note: string;
+  operation_check_result: "ok" | "problem" | "unable" | null;
+  operation_check_memo: string;
 };
 
 export type WorkReward = {

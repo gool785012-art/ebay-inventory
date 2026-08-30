@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { sendNotification } from "@/lib/notify-client";
 import { TURNTABLE_CHECKLIST, SHIP_CHECKLIST } from "@/lib/constants";
+import { OPERATION_CHECK_RESULTS } from "@/lib/reward";
 import PhotoUpload from "@/components/PhotoUpload";
 import type { Carrier, Product } from "@/types/db";
 
@@ -101,6 +102,9 @@ export default function StaffWorkPanel({
   const [shippedDate, setShippedDate] = useState(product.shipped_date ?? today);
   const [problemOpen, setProblemOpen] = useState(false);
   const [problemNote, setProblemNote] = useState(product.problem_note);
+  // 追加作業（Phase 9）
+  const [opResult, setOpResult] = useState(product.operation_check_result ?? "");
+  const [opMemo, setOpMemo] = useState(product.operation_check_memo);
   const [checks, setChecks] = useState<Record<string, boolean>>(
     Object.fromEntries(checklistRows.map((r) => [r.item_key, r.checked]))
   );
@@ -317,6 +321,107 @@ export default function StaffWorkPanel({
         </div>
       </Step>
 
+      {/* 追加作業: 商品状態の写真撮影（管理者が「必要」にした場合のみ表示） */}
+      {product.photo_required && (
+        <div className={`rounded-xl border-2 bg-white p-4 shadow-sm ${
+          (photoCounts["condition"] ?? 0) > 0 ? "border-green-300" : "border-amber-300"
+        }`}>
+          <div className="mb-2 flex items-center gap-2">
+            <span className="text-base font-bold text-slate-800">
+              📸 商品状態の写真撮影
+            </span>
+            <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-bold text-blue-700">
+              ＋100円
+            </span>
+            {(photoCounts["condition"] ?? 0) > 0 && (
+              <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-bold text-green-700">
+                ✓ {photoCounts["condition"]}枚
+              </span>
+            )}
+          </div>
+          <p className="mb-2 text-sm text-slate-600">
+            商品の状態が分かる写真を撮ってください（傷や汚れがあればアップで）。
+          </p>
+          <PhotoUpload productId={product.id} category="condition" />
+          {(photoCounts["condition"] ?? 0) === 0 && (
+            <p className="mt-2 text-xs font-bold text-amber-700">
+              ⚠ 写真がまだアップロードされていません（発送完了に必要です）
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* 追加作業: 簡単な動作確認 */}
+      {product.operation_check_required && (
+        <div className={`rounded-xl border-2 bg-white p-4 shadow-sm ${
+          product.operation_check_result === "problem"
+            ? "border-red-400"
+            : product.operation_check_result
+              ? "border-green-300"
+              : "border-amber-300"
+        }`}>
+          <div className="mb-2 flex items-center gap-2">
+            <span className="text-base font-bold text-slate-800">🔧 簡単な動作確認</span>
+            <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-bold text-blue-700">
+              ＋200円
+            </span>
+          </div>
+          <p className="mb-2 text-sm text-slate-600">
+            電源が入るか、ボタンが動くかなど、簡単に確認して結果を選んでください。
+          </p>
+          <div className="mb-3 space-y-2">
+            {OPERATION_CHECK_RESULTS.map((r) => (
+              <button
+                key={r.key}
+                type="button"
+                onClick={() => setOpResult(r.key)}
+                className={`w-full rounded-lg border py-3 text-base font-bold ${
+                  opResult === r.key
+                    ? r.key === "problem"
+                      ? "border-red-500 bg-red-50 text-red-700"
+                      : r.key === "ok"
+                        ? "border-green-500 bg-green-50 text-green-700"
+                        : "border-amber-500 bg-amber-50 text-amber-700"
+                    : "border-slate-300 bg-white text-slate-500"
+                }`}
+              >
+                {r.label}
+              </button>
+            ))}
+          </div>
+          <label className="mb-1 block text-sm font-semibold text-slate-600">
+            動作確認メモ（任意）
+          </label>
+          <textarea value={opMemo} onChange={(e) => setOpMemo(e.target.value)} rows={2}
+            placeholder="例: 電源ON確認、シャッター確認、ボタン操作確認" className={inputCls} />
+          <button
+            disabled={saving || !opResult}
+            onClick={() =>
+              updateProduct(
+                {
+                  operation_check_result: opResult,
+                  operation_check_memo: opMemo,
+                },
+                opResult === "problem"
+                  ? "問題ありとして記録しました。管理者の確認をお待ちください。"
+                  : "動作確認の結果を保存しました",
+                opResult === "problem"
+                  ? { event: "problem_reported", extra: `動作確認: 問題あり${opMemo ? `（${opMemo}）` : ""}` }
+                  : undefined
+              )
+            }
+            className={`mt-3 ${btnCls}`}
+          >
+            動作確認の結果を保存する
+          </button>
+          {product.operation_check_result === "problem" && (
+            <p className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-sm font-bold text-red-700">
+              ⚠ 問題ありとして記録されています。管理者の指示があるまで発送しないでください。
+            </p>
+          )}
+        </div>
+      )}
+
       {/* STEP4 梱包前確認 */}
       <Step {...stepProps(3)} title="STEP4 梱包前確認">
         <p className="mb-1 text-sm font-semibold text-slate-600">
@@ -491,6 +596,27 @@ export default function StaffWorkPanel({
           <button
             disabled={saving || !carrierId || !tracking.trim() || !shippedDate || !allShipChecked}
             onClick={() => {
+              // 商品状態の写真が必要なのに未アップの場合は警告（Phase 9）
+              if (product.photo_required && (photoCounts["condition"] ?? 0) === 0) {
+                alert(
+                  "商品状態の写真がまだアップロードされていません。\n上の「📸 商品状態の写真撮影」から写真をアップロードしてください。"
+                );
+                return;
+              }
+              // 動作確認が必要なのに未入力の場合は警告
+              if (product.operation_check_required && !product.operation_check_result) {
+                alert(
+                  "動作確認の結果がまだ入力されていません。\n上の「🔧 簡単な動作確認」から結果を選んで保存してください。"
+                );
+                return;
+              }
+              // 動作確認で問題ありの場合は発送させない
+              if (product.operation_check_result === "problem") {
+                alert(
+                  "動作確認で「問題あり」が報告されています。\n管理者の指示があるまで発送しないでください。"
+                );
+                return;
+              }
               // 追跡番号の上書き事故防止（要件15）
               if (
                 product.tracking_number &&
