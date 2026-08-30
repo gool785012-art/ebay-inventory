@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { sendNotification } from "@/lib/notify-client";
 import { STATUSES } from "@/lib/constants";
 import type { Profile } from "@/types/db";
 
@@ -38,6 +39,10 @@ export default function ProductQuickActions({
     if (error) {
       setError("保存に失敗しました: " + error.message);
       return;
+    }
+    // 仕入れ先から外注先へ発送したタイミングでスタッフへ通知
+    if (status === "sent_to_staff" && currentStatus !== "sent_to_staff") {
+      await sendNotification("sent_to_staff", productId);
     }
     router.refresh();
   }

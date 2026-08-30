@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { sendNotification } from "@/lib/notify-client";
 
 // コメント投稿フォーム（管理者・スタッフ共通、要件11）
 export default function CommentForm({ productId }: { productId: string }) {
@@ -33,6 +34,7 @@ export default function CommentForm({ productId }: { productId: string }) {
       setError("送信に失敗しました: " + err.message);
       return;
     }
+    await sendNotification("comment", productId, body.trim());
     setBody("");
     router.refresh();
   }

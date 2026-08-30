@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { sendNotification } from "@/lib/notify-client";
 import { fmtPickupRange, fmtTime, handoverOptions } from "@/lib/constants";
 import type { Product } from "@/types/db";
 
@@ -69,6 +70,10 @@ export default function PickupStaff({
     const { error: err } = await supabase.from("products").update(payload).eq("id", product.id);
     setSaving(false);
     if (err) { setError("保存に失敗しました: " + err.message); return; }
+    // 集荷可能日時が入力されたことを管理者へ通知（集荷手配の依頼）
+    if (method === "pickup") {
+      await sendNotification("pickup_entered", product.id, note);
+    }
     setOpen(false);
     router.refresh();
   }
