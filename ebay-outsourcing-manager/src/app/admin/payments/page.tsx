@@ -36,6 +36,8 @@ export default async function AdminPaymentsPage(props: {
   type RawReward = {
     id: string; product_id: string; completed_at: string; reward_amount: number;
     payment_status: string; paid_at: string | null; memo: string;
+    packing_reward: number; photo_reward: number; operation_check_reward: number;
+    handover_reward: number; reimbursement: number;
     products: { control_number: string; name: string; category_id: number | null } | null;
   };
   const allRows: RewardRow[] = ((rewards ?? []) as unknown as RawReward[]).map((r) => ({
@@ -50,6 +52,18 @@ export default async function AdminPaymentsPage(props: {
     paid_at: r.paid_at,
     memo: r.memo,
   }));
+
+  // 報酬の内訳（Phase 9: 項目別の月次集計）
+  const raw = (rewards ?? []) as unknown as RawReward[];
+  const sum = (key: keyof RawReward) =>
+    raw.reduce((s, r) => s + (Number(r[key]) || 0), 0);
+  const breakdown = [
+    { label: "梱包報酬", value: sum("packing_reward") },
+    { label: "写真撮影報酬", value: sum("photo_reward") },
+    { label: "動作確認報酬", value: sum("operation_check_reward") },
+    { label: "集荷・持ち込み", value: sum("handover_reward") },
+    { label: "立替金", value: sum("reimbursement") },
+  ].filter((b) => b.value > 0);
 
   // カードはその月の全件で集計（絞り込みの影響を受けない）
   const totalCount = allRows.length;
@@ -135,6 +149,35 @@ export default async function AdminPaymentsPage(props: {
             </div>
           ))}
         </div>
+
+        {/* 報酬の内訳（Phase 9） */}
+        {breakdown.length > 0 && (
+          <div className="mb-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <h2 className="mb-2 text-sm font-bold text-slate-600">
+              {monthLabel(month)}の報酬内訳
+            </h2>
+            <table className="w-full max-w-sm text-sm">
+              <tbody>
+                {breakdown.map((b) => (
+                  <tr key={b.label}>
+                    <td className="py-1 text-slate-600">{b.label}</td>
+                    <td className="py-1 text-right font-semibold text-slate-800">
+                      {fmtYen(b.value)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="border-t border-slate-300">
+                  <td className="pt-2 font-bold text-slate-700">支払合計</td>
+                  <td className="pt-2 text-right text-lg font-bold text-blue-600">
+                    {fmtYen(totalAmount)}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        )}
 
         {/* まとめて支払済み */}
         <div className="mb-4">

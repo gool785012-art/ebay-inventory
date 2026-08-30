@@ -8,6 +8,7 @@ import PhotoGallery from "@/components/PhotoGallery";
 import CommentForm from "@/components/CommentForm";
 import ShippingDocsStaff from "@/components/ShippingDocsStaff";
 import PickupStaff from "@/components/PickupStaff";
+import StaffTaskSummary from "@/components/StaffTaskSummary";
 import { requireProfile } from "@/lib/auth";
 import type { Product, Profile, ShippingDocument } from "@/types/db";
 
@@ -64,7 +65,7 @@ export default async function StaffProductPage(props: {
   const { data: category } = product.category_id
     ? await supabase
         .from("categories")
-        .select("name, requires_turntable_checklist")
+        .select("name, requires_turntable_checklist, default_fee")
         .eq("id", product.category_id)
         .single()
     : { data: null };
@@ -107,6 +108,11 @@ export default async function StaffProductPage(props: {
               📌 {product.notes}
             </div>
           )}
+        </div>
+
+        {/* 今回の作業と報酬予定（Phase 9） */}
+        <div className="mb-4">
+          <StaffTaskSummary product={product} packingReward={category?.default_fee ?? 0} />
         </div>
 
         {/* 発送ラベル・発送書類（管理者が共有したものだけ表示される） */}
