@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { sendNotification } from "@/lib/notify-client";
 import { STATUSES, SHIPPING_METHODS } from "@/lib/constants";
 import type { Category, Carrier, Product, Profile } from "@/types/db";
 
@@ -150,6 +151,12 @@ export default function ProductForm({
       }
     } else if (isEdit && initialFee != null) {
       await supabase.from("product_fees").delete().eq("product_id", productId);
+    }
+
+    // 仕入れ先から外注先へ発送したタイミングでスタッフへ通知
+    // （商品詳細ページのクイック操作だけでなく、この編集フォームからの変更でも通知する）
+    if (payload.status === "sent_to_staff" && initial?.status !== "sent_to_staff") {
+      await sendNotification("sent_to_staff", productId);
     }
 
     router.push("/admin/products");
