@@ -20,50 +20,91 @@ export default async function AdminPaymentsPage(props: {
   const fCategory = sp.category ?? "";
   const q = sp.q?.trim() ?? "";
 
-  const [{ data: rewards }, { data: categories }] = await Promise.all([
-    supabase
-      .from("work_rewards")
-      .select("*, products(control_number, name, category_id)")
-      .gte("completed_at", start)
-      .lt("completed_at", end)
-      .order("completed_at"),
-    supabase.from("categories").select("*").order("sort_order"),
-  ]);
+  const [{ data: rewards }, { data: categories }, { data: allExpenses }, { data: allReceipts }, { data: staffList }] =
+    await Promise.all([
+      supabase
+        .from("work_rewards")
+        .select("*, products(control_number, name, category_id)")
+        .gte("completed_at", start)
+        .lt("completed_at", end)
+        .order("completed_at"),
+      supabase.from("categories").select("*").order("sort_order"),
+      supabase.from("product_expenses").select("product_id, expense_type, amount, status"),
+      supabase.from("expense_receipts").select("product_id"),
+      supabase.from("profiles").select("id, full_name, email"),
+    ]);
+
+  // 商品ごとの立替金（承認済みのみ支払対象）
+  const expenseByProduct = new Map<string, { postal: number; material: number; other: number }>();
+  for (const e of allExpenses ?? []) {
+    if (e.status !== "approved") continue;
+    const cur = expenseByProduct.get(e.product_id) ?? { postal: 0, material: 0, other: 0 };
+    if (e.expense_type === "postal_postage") cur.postal += e.amount;
+    else if (e.expense_type === "packing_material") cur.material += e.amount;
+    else cur.other += e.amount;
+    expenseByProduct.set(e.product_id, cur);
+  }
+  const receiptProductIds = new Set((allReceipts ?? []).map((r) => r.product_id));
+  const staffNameMap = new Map(
+    (staffList ?? []).map((s) => [s.id, s.full_name || s.email || ""])
+  );
 
   const catMap = new Map((categories ?? []).map((c: Category) => [c.id, c.name]));
 
   // 表示用の行に変換
   type RawReward = {
-    id: string; product_id: string; completed_at: string; reward_amount: number;
+    id: string; product_id: string; staff_id: string | null;
+    completed_at: string; reward_amount: number;
     payment_status: string; paid_at: string | null; memo: string;
     packing_reward: number; photo_reward: number; operation_check_reward: number;
     handover_reward: number; reimbursement: number;
     products: { control_number: string; name: string; category_id: number | null } | null;
   };
-  const allRows: RewardRow[] = ((rewards ?? []) as unknown as RawReward[]).map((r) => ({
-    id: r.id,
-    product_id: r.product_id,
-    completed_at: r.completed_at,
-    control_number: r.products?.control_number ?? "—",
-    name: r.products?.name ?? "（削除された商品）",
-    category: r.products?.category_id ? (catMap.get(r.products.category_id) ?? "—") : "—",
-    reward_amount: r.reward_amount,
-    payment_status: r.payment_status,
-    paid_at: r.paid_at,
-    memo: r.memo,
-  }));
+  const allRows: RewardRow[] = ((rewards ?? []) as unknown as RawReward[]).map((r) => {
+    const exp = expenseByProduct.get(r.product_id) ?? { postal: 0, material: 0, other: 0 };
+    return {
+      id: r.id,
+      product_id: r.product_id,
+      completed_at: r.completed_at,
+      control_number: r.products?.control_number ?? "—",
+      name: r.products?.name ?? "（削除された商品）",
+      category: r.products?.category_id ? (catMap.get(r.products.category_id) ?? "—") : "—",
+      reward_amount: r.reward_amount,
+      payment_status: r.payment_status,
+      paid_at: r.paid_at,
+      memo: r.memo,
+      staff_name: r.staff_id ? (staffNameMap.get(r.staff_id) ?? "") : "",
+      packing_reward: r.packing_reward ?? 0,
+      photo_reward: r.photo_reward ?? 0,
+      operation_check_reward: r.operation_check_reward ?? 0,
+      handover_reward: r.handover_reward ?? 0,
+      postal_expense: exp.postal,
+      packing_material_expense: exp.material,
+      other_expense: exp.other,
+      has_receipt: receiptProductIds.has(r.product_id),
+    };
+  });
 
   // 報酬の内訳（Phase 9: 項目別の月次集計）
   const raw = (rewards ?? []) as unknown as RawReward[];
   const sum = (key: keyof RawReward) =>
     raw.reduce((s, r) => s + (Number(r[key]) || 0), 0);
-  const breakdown = [
+  // 作業報酬の内訳
+  const rewardBreakdown = [
     { label: "梱包報酬", value: sum("packing_reward") },
     { label: "写真撮影報酬", value: sum("photo_reward") },
     { label: "動作確認報酬", value: sum("operation_check_reward") },
     { label: "集荷・持ち込み", value: sum("handover_reward") },
-    { label: "立替金", value: sum("reimbursement") },
   ].filter((b) => b.value > 0);
+  const rewardSubtotal = rewardBreakdown.reduce((s, b) => s + b.value, 0);
+
+  // 立替金の内訳（作業報酬とは別項目）
+  const expenseBreakdown = [
+    { label: "郵便送料", value: allRows.reduce((s, r) => s + r.postal_expense, 0) },
+    { label: "梱包資材", value: allRows.reduce((s, r) => s + r.packing_material_expense, 0) },
+    { label: "その他", value: allRows.reduce((s, r) => s + r.other_expense, 0) },
+  ].filter((b) => b.value > 0);
+  const expenseSubtotal = expenseBreakdown.reduce((s, b) => s + b.value, 0);
 
   // カードはその月の全件で集計（絞り込みの影響を受けない）
   const totalCount = allRows.length;
@@ -150,32 +191,75 @@ export default async function AdminPaymentsPage(props: {
           ))}
         </div>
 
-        {/* 報酬の内訳（Phase 9） */}
-        {breakdown.length > 0 && (
+        {/* 支払明細（Phase 9/10: 作業報酬と立替金を分けて表示） */}
+        {(rewardBreakdown.length > 0 || expenseBreakdown.length > 0) && (
           <div className="mb-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <h2 className="mb-2 text-sm font-bold text-slate-600">
-              {monthLabel(month)}の報酬内訳
+            <h2 className="mb-3 text-sm font-bold text-slate-600">
+              {monthLabel(month)} 外注スタッフ支払明細
             </h2>
-            <table className="w-full max-w-sm text-sm">
-              <tbody>
-                {breakdown.map((b) => (
-                  <tr key={b.label}>
-                    <td className="py-1 text-slate-600">{b.label}</td>
-                    <td className="py-1 text-right font-semibold text-slate-800">
-                      {fmtYen(b.value)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr className="border-t border-slate-300">
-                  <td className="pt-2 font-bold text-slate-700">支払合計</td>
-                  <td className="pt-2 text-right text-lg font-bold text-blue-600">
-                    {fmtYen(totalAmount)}
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
+            <div className="grid gap-6 sm:grid-cols-2">
+              {/* 作業報酬 */}
+              <div>
+                <div className="mb-1 text-xs font-bold text-slate-500">【作業報酬】</div>
+                <table className="w-full text-sm">
+                  <tbody>
+                    {rewardBreakdown.map((b) => (
+                      <tr key={b.label}>
+                        <td className="py-1 text-slate-600">{b.label}</td>
+                        <td className="py-1 text-right font-semibold text-slate-800">
+                          {fmtYen(b.value)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="border-t border-slate-300">
+                      <td className="pt-2 font-bold text-slate-700">作業報酬合計</td>
+                      <td className="pt-2 text-right font-bold text-slate-800">
+                        {fmtYen(rewardSubtotal)}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+
+              {/* 立替金 */}
+              <div>
+                <div className="mb-1 text-xs font-bold text-slate-500">【立替金】</div>
+                {expenseBreakdown.length === 0 ? (
+                  <p className="py-1 text-sm text-slate-400">立替金はありません</p>
+                ) : (
+                  <table className="w-full text-sm">
+                    <tbody>
+                      {expenseBreakdown.map((b) => (
+                        <tr key={b.label}>
+                          <td className="py-1 text-slate-600">{b.label}</td>
+                          <td className="py-1 text-right font-semibold text-slate-800">
+                            {fmtYen(b.value)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="border-t border-slate-300">
+                        <td className="pt-2 font-bold text-slate-700">立替金合計</td>
+                        <td className="pt-2 text-right font-bold text-slate-800">
+                          {fmtYen(expenseSubtotal)}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                )}
+              </div>
+            </div>
+
+            <div className="mt-4 flex items-center border-t-2 border-slate-300 pt-3">
+              <span className="font-bold text-slate-700">最終支払額</span>
+              <span className="flex-1" />
+              <span className="text-xl font-bold text-blue-600">
+                {fmtYen(rewardSubtotal + expenseSubtotal)}
+              </span>
+            </div>
           </div>
         )}
 

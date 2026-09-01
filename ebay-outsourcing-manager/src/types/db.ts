@@ -99,3 +99,28 @@ export type ShippingDocument = {
   created_at: string;
   updated_at: string;
 };
+
+export type ProductExpense = {
+  id: string;
+  product_id: string;
+  expense_type: string;
+  description: string;
+  amount: number;
+  status: string;
+  no_receipt_approved: boolean;
+  admin_note: string;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ExpenseReceipt = {
+  id: string;
+  expense_id: string;
+  product_id: string;
+  file_name: string;
+  storage_path: string;
+  uploaded_by: string | null;
+  created_at: string;
+};

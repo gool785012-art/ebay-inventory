@@ -89,3 +89,93 @@ export function operationCheckBadge(key: string | null): string {
     "bg-gray-100 text-gray-500 border-gray-300"
   );
 }
+
+// ─── 立替金（Phase 10） ────────────────────────────────────────
+// 作業報酬とは完全に別で管理し、支払時に合算する。
+
+export const EXPENSE_TYPES = [
+  { key: "postal_postage",   label: "郵便送料" },
+  { key: "packing_material", label: "梱包資材" },
+  { key: "other",            label: "その他" },
+] as const;
+
+export function expenseTypeLabel(key: string): string {
+  return EXPENSE_TYPES.find((t) => t.key === key)?.label ?? key;
+}
+
+export const EXPENSE_STATUSES = [
+  { key: "pending",  label: "未確認",   badge: "bg-amber-50 text-amber-700 border-amber-200" },
+  { key: "approved", label: "承認済み", badge: "bg-green-50 text-green-700 border-green-200" },
+  { key: "rejected", label: "差し戻し", badge: "bg-red-50 text-red-700 border-red-200" },
+] as const;
+
+export function expenseStatusLabel(key: string): string {
+  return EXPENSE_STATUSES.find((s) => s.key === key)?.label ?? key;
+}
+
+export function expenseStatusBadge(key: string): string {
+  return EXPENSE_STATUSES.find((s) => s.key === key)?.badge
+    ?? "bg-gray-100 text-gray-500 border-gray-300";
+}
+
+export type Expense = {
+  expense_type: string;
+  amount: number;
+  status?: string;
+};
+
+/** 立替金の合計（承認済みのみ数えたい場合は approvedOnly を true にする） */
+export function calcExpenseTotal(expenses: Expense[], approvedOnly = false): number {
+  return expenses
+    .filter((e) => !approvedOnly || e.status === "approved")
+    .reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+}
+
+/** 種類ごとの立替金合計 */
+export function calcExpenseByType(expenses: Expense[], approvedOnly = false) {
+  const target = expenses.filter((e) => !approvedOnly || e.status === "approved");
+  return {
+    postalPostage: target.filter((e) => e.expense_type === "postal_postage")
+      .reduce((s, e) => s + (Number(e.amount) || 0), 0),
+    packingMaterial: target.filter((e) => e.expense_type === "packing_material")
+      .reduce((s, e) => s + (Number(e.amount) || 0), 0),
+    other: target.filter((e) => e.expense_type === "other")
+      .reduce((s, e) => s + (Number(e.amount) || 0), 0),
+  };
+}
+
+/**
+ * スタッフへの支払総額を計算する。
+ * 作業報酬（staffRewardTotal）と立替金（expenseTotal）は必ず分けて扱う。
+ */
+export function calcStaffPayment(
+  rewardInput: RewardInput,
+  expenses: Expense[],
+  approvedOnly = false
+) {
+  const reward = calcReward({ ...rewardInput, reimbursement: 0 });
+  const expenseTotal = calcExpenseTotal(expenses, approvedOnly);
+  return {
+    reward,
+    staffRewardTotal: reward.totalReward,   // 作業報酬のみ
+    expenseTotal,                          // 立替金のみ
+    expenseByType: calcExpenseByType(expenses, approvedOnly),
+    staffPaymentTotal: reward.totalReward + expenseTotal,  // 支払総額
+  };
+}
+
+/** 金額入力の検証（マイナス禁止・数字以外禁止・極端に大きい金額は要確認） */
+export function validateAmount(input: string): { ok: boolean; value: number; message?: string } {
+  const trimmed = input.trim();
+  if (trimmed === "") return { ok: false, value: 0, message: "金額を入力してください" };
+  if (!/^\d+$/.test(trimmed)) {
+    return { ok: false, value: 0, message: "金額は数字（半角）のみで入力してください" };
+  }
+  const value = Number(trimmed);
+  if (value < 0) return { ok: false, value: 0, message: "マイナスの金額は入力できません" };
+  if (value === 0) return { ok: false, value: 0, message: "0円の場合は登録不要です" };
+  if (value > 100000) {
+    return { ok: true, value, message: "金額が10万円を超えています。入力内容をご確認ください" };
+  }
+  return { ok: true, value };
+}

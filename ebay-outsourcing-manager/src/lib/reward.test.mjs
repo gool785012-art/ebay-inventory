@@ -86,3 +86,93 @@ test("内訳の各項目が正しい", () => {
   assert.equal(r.reimbursement, 250);
   assert.equal(r.totalReward, 2050);
 });
+
+// ─── 立替金のテスト（Phase 10） ─────────────────────────────────
+function calcExpenseTotal(expenses, approvedOnly = false) {
+  return expenses
+    .filter((e) => !approvedOnly || e.status === "approved")
+    .reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+}
+
+function calcStaffPayment(rewardInput, expenses, approvedOnly = false) {
+  const reward = calcReward({ ...rewardInput, reimbursement: 0 });
+  const expenseTotal = calcExpenseTotal(expenses, approvedOnly);
+  return {
+    staffRewardTotal: reward.totalReward,
+    expenseTotal,
+    staffPaymentTotal: reward.totalReward + expenseTotal,
+  };
+}
+
+test("立替ケース1: 作業報酬800円 / 立替なし → 支払総額800円", () => {
+  const p = calcStaffPayment(
+    { packingReward: 500, photoRequired: true, operationCheckRequired: true },
+    []
+  );
+  assert.equal(p.staffRewardTotal, 800);
+  assert.equal(p.expenseTotal, 0);
+  assert.equal(p.staffPaymentTotal, 800);
+});
+
+test("立替ケース2: 作業報酬800円 / 郵便送料1,860円 → 支払総額2,660円", () => {
+  const p = calcStaffPayment(
+    { packingReward: 500, photoRequired: true, operationCheckRequired: true },
+    [{ expense_type: "postal_postage", amount: 1860 }]
+  );
+  assert.equal(p.staffRewardTotal, 800);
+  assert.equal(p.expenseTotal, 1860);
+  assert.equal(p.staffPaymentTotal, 2660);
+});
+
+test("立替ケース3: 作業報酬800円 / 郵便送料1,860円 + 梱包資材1,250円 → 立替3,110円・支払3,910円", () => {
+  const p = calcStaffPayment(
+    { packingReward: 500, photoRequired: true, operationCheckRequired: true },
+    [
+      { expense_type: "postal_postage", amount: 1860 },
+      { expense_type: "packing_material", amount: 1250 },
+    ]
+  );
+  assert.equal(p.staffRewardTotal, 800);
+  assert.equal(p.expenseTotal, 3110);
+  assert.equal(p.staffPaymentTotal, 3910);
+});
+
+test("立替ケース4: 梱包500+写真100+動作200+郵便局持込300 / 立替2,100+800 → 報酬1,100・立替2,900・支払4,000", () => {
+  const p = calcStaffPayment(
+    {
+      packingReward: 500, photoRequired: true, operationCheckRequired: true,
+      handoverReward: 300,
+    },
+    [
+      { expense_type: "postal_postage", amount: 2100 },
+      { expense_type: "packing_material", amount: 800 },
+    ]
+  );
+  assert.equal(p.staffRewardTotal, 1100);
+  assert.equal(p.expenseTotal, 2900);
+  assert.equal(p.staffPaymentTotal, 4000);
+});
+
+test("承認済みの立替金だけを支払対象にできる", () => {
+  const expenses = [
+    { expense_type: "postal_postage", amount: 1860, status: "approved" },
+    { expense_type: "packing_material", amount: 1250, status: "pending" },
+    { expense_type: "other", amount: 500, status: "rejected" },
+  ];
+  assert.equal(calcExpenseTotal(expenses), 3610);        // 全件
+  assert.equal(calcExpenseTotal(expenses, true), 1860);  // 承認済みのみ
+});
+
+test("作業報酬と立替金が混ざらない（3件の立替でも報酬は変わらない）", () => {
+  const p = calcStaffPayment(
+    { packingReward: 500, photoRequired: false, operationCheckRequired: false },
+    [
+      { expense_type: "postal_postage", amount: 1860 },
+      { expense_type: "packing_material", amount: 1250 },
+      { expense_type: "other", amount: 398 },
+    ]
+  );
+  assert.equal(p.staffRewardTotal, 500);
+  assert.equal(p.expenseTotal, 3508);
+  assert.equal(p.staffPaymentTotal, 4008);
+});
