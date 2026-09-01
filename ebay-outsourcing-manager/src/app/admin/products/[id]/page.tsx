@@ -11,11 +11,14 @@ import PhotoUpload from "@/components/PhotoUpload";
 import ShippingDocsAdmin from "@/components/ShippingDocsAdmin";
 import PickupAdmin from "@/components/PickupAdmin";
 import RewardSettings from "@/components/RewardSettings";
+import ExpensePanel from "@/components/ExpensePanel";
 import { requireProfile } from "@/lib/auth";
 import {
   statusLabel, paymentStatusLabel, documentTypeLabel, pickupStatusLabel,
 } from "@/lib/constants";
-import type { Product, Profile, ShippingDocument } from "@/types/db";
+import type {
+  Product, Profile, ShippingDocument, ProductExpense, ExpenseReceipt,
+} from "@/types/db";
 
 function fmtDateTime(iso: string) {
   return new Date(iso).toLocaleString("ja-JP", {
@@ -85,6 +88,8 @@ export default async function ProductDetailPage(props: {
     { data: photos },
     { data: shipDocs },
     { data: feeRow },
+    { data: expenses },
+    { data: receipts },
   ] = await Promise.all([
     supabase.from("products").select("*").eq("id", id).single<Product>(),
     supabase
@@ -111,6 +116,8 @@ export default async function ProductDetailPage(props: {
       .eq("product_id", id)
       .order("created_at"),
     supabase.from("product_fees").select("amount").eq("product_id", id).maybeSingle(),
+    supabase.from("product_expenses").select("*").eq("product_id", id).order("created_at"),
+    supabase.from("expense_receipts").select("*").eq("product_id", id).order("created_at"),
   ]);
 
   if (!product) notFound();
@@ -252,6 +259,20 @@ export default async function ProductDetailPage(props: {
             product={product}
             packingReward={feeRow?.amount ?? category?.default_fee ?? 0}
             packingLabel={`${category?.name ?? "商品"} 梱包`}
+            expenseTotal={(expenses ?? []).reduce((s, e) => s + (e.amount || 0), 0)}
+            approvedExpenseTotal={(expenses ?? [])
+              .filter((e) => e.status === "approved")
+              .reduce((s, e) => s + (e.amount || 0), 0)}
+          />
+        </div>
+
+        {/* 立替金（Phase 10） */}
+        <div className="mt-4">
+          <ExpensePanel
+            productId={product.id}
+            expenses={(expenses ?? []) as ProductExpense[]}
+            receipts={(receipts ?? []) as ExpenseReceipt[]}
+            isAdmin
           />
         </div>
 

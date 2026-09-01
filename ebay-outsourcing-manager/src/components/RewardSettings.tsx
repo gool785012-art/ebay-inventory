@@ -16,10 +16,15 @@ export default function RewardSettings({
   product,
   packingReward,
   packingLabel,
+  expenseTotal = 0,
+  approvedExpenseTotal = 0,
 }: {
   product: Product;
   packingReward: number;
   packingLabel: string;
+  /** 立替金の合計（作業報酬とは別に表示する） */
+  expenseTotal?: number;
+  approvedExpenseTotal?: number;
 }) {
   const router = useRouter();
   const [photo, setPhoto] = useState(product.photo_required);
@@ -66,13 +71,16 @@ export default function RewardSettings({
     router.refresh();
   }
 
+  // 作業報酬の内訳（立替金は含めない）
   const rows = [
     { label: packingLabel, value: r.packingReward, show: true },
     { label: "商品状態の写真撮影", value: r.photoReward, show: photo },
     { label: "簡単な動作確認", value: r.operationCheckReward, show: operation },
     { label: handoverRewardLabel(handover), value: r.handoverReward, show: r.handoverReward > 0 },
-    { label: `立替金${reimbursementNote ? `（${reimbursementNote}）` : ""}`, value: r.reimbursement, show: r.reimbursement > 0 },
   ].filter((row) => row.show);
+
+  // 作業報酬（立替金を除いた金額）
+  const staffRewardTotal = r.totalReward - r.reimbursement;
 
   const inputCls =
     "w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500";
@@ -142,9 +150,9 @@ export default function RewardSettings({
         </div>
       </div>
 
-      {/* 報酬内訳 */}
+      {/* 報酬内訳（作業報酬と立替金は必ず分けて表示） */}
       <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
-        <div className="mb-2 text-xs font-bold text-slate-500">【報酬内訳】</div>
+        <div className="mb-2 text-xs font-bold text-slate-500">【作業報酬】</div>
         <table className="w-full text-sm">
           <tbody>
             {rows.map((row) => (
@@ -158,13 +166,54 @@ export default function RewardSettings({
           </tbody>
           <tfoot>
             <tr className="border-t border-slate-300">
-              <td className="pt-2 font-bold text-slate-700">合計</td>
-              <td className="pt-2 text-right text-lg font-bold text-blue-600">
-                {fmtYen(r.totalReward)}
+              <td className="pt-2 font-bold text-slate-700">作業報酬</td>
+              <td className="pt-2 text-right text-base font-bold text-slate-800">
+                {fmtYen(staffRewardTotal)}
               </td>
             </tr>
           </tfoot>
         </table>
+
+        {expenseTotal > 0 && (
+          <>
+            <div className="mt-4 mb-2 text-xs font-bold text-slate-500">【立替金】</div>
+            <table className="w-full text-sm">
+              <tbody>
+                <tr>
+                  <td className="py-1 text-slate-600">立替金合計（下の「💴 立替金」で管理）</td>
+                  <td className="py-1 text-right font-semibold text-slate-800">
+                    {fmtYen(expenseTotal)}
+                  </td>
+                </tr>
+                {approvedExpenseTotal !== expenseTotal && (
+                  <tr>
+                    <td className="py-1 text-amber-700">うち承認済み（支払対象）</td>
+                    <td className="py-1 text-right font-semibold text-amber-700">
+                      {fmtYen(approvedExpenseTotal)}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+
+            <div className="mt-4 flex items-center border-t-2 border-slate-300 pt-3">
+              <span className="font-bold text-slate-700">支払合計（報酬＋立替金）</span>
+              <span className="flex-1" />
+              <span className="text-lg font-bold text-blue-600">
+                {fmtYen(staffRewardTotal + approvedExpenseTotal)}
+              </span>
+            </div>
+          </>
+        )}
+
+        {expenseTotal === 0 && (
+          <div className="mt-3 flex items-center border-t border-slate-300 pt-2">
+            <span className="font-bold text-slate-700">支払合計</span>
+            <span className="flex-1" />
+            <span className="text-lg font-bold text-blue-600">{fmtYen(staffRewardTotal)}</span>
+          </div>
+        )}
+
         {product.status === "shipped" && (
           <p className="mt-2 text-xs text-amber-700">
             ※ この商品は発送済みのため、報酬は確定済みです。金額の修正は報酬管理ページで行ってください。

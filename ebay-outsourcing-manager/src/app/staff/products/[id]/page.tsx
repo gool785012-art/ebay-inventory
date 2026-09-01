@@ -9,8 +9,11 @@ import CommentForm from "@/components/CommentForm";
 import ShippingDocsStaff from "@/components/ShippingDocsStaff";
 import PickupStaff from "@/components/PickupStaff";
 import StaffTaskSummary from "@/components/StaffTaskSummary";
+import ExpensePanel from "@/components/ExpensePanel";
 import { requireProfile } from "@/lib/auth";
-import type { Product, Profile, ShippingDocument } from "@/types/db";
+import type {
+  Product, Profile, ShippingDocument, ProductExpense, ExpenseReceipt,
+} from "@/types/db";
 
 function fmtDateTime(iso: string) {
   return new Date(iso).toLocaleString("ja-JP", {
@@ -33,6 +36,8 @@ export default async function StaffProductPage(props: {
     { data: checklistRows },
     { data: carriers },
     { data: shipDocs },
+    { data: expenses },
+    { data: receipts },
   ] = await Promise.all([
     supabase.from("products").select("*").eq("id", id).single<Product>(),
     supabase
@@ -55,6 +60,8 @@ export default async function StaffProductPage(props: {
       .select("*")
       .eq("product_id", id)
       .order("created_at"),
+    supabase.from("product_expenses").select("*").eq("product_id", id).order("created_at"),
+    supabase.from("expense_receipts").select("*").eq("product_id", id).order("created_at"),
   ]);
 
   if (!product) notFound();
@@ -110,9 +117,23 @@ export default async function StaffProductPage(props: {
           )}
         </div>
 
-        {/* 今回の作業と報酬予定（Phase 9） */}
+        {/* 今回の作業と報酬・立替金（Phase 9/10） */}
         <div className="mb-4">
-          <StaffTaskSummary product={product} packingReward={category?.default_fee ?? 0} />
+          <StaffTaskSummary
+            product={product}
+            packingReward={category?.default_fee ?? 0}
+            expenses={(expenses ?? []) as ProductExpense[]}
+          />
+        </div>
+
+        {/* 立替金の登録（Phase 10） */}
+        <div className="mb-4">
+          <ExpensePanel
+            productId={product.id}
+            expenses={(expenses ?? []) as ProductExpense[]}
+            receipts={(receipts ?? []) as ExpenseReceipt[]}
+            isAdmin={false}
+          />
         </div>
 
         {/* 発送ラベル・発送書類（管理者が共有したものだけ表示される） */}

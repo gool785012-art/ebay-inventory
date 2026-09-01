@@ -16,6 +16,16 @@ export type RewardRow = {
   payment_status: string;
   paid_at: string | null;
   memo: string;
+  // 報酬の内訳（Phase 9/10: CSV出力で作業報酬と立替金を分けるため）
+  staff_name: string;
+  packing_reward: number;
+  photo_reward: number;
+  operation_check_reward: number;
+  handover_reward: number;
+  postal_expense: number;
+  packing_material_expense: number;
+  other_expense: number;
+  has_receipt: boolean;
 };
 
 function fmtDate(d: string) {
@@ -62,22 +72,42 @@ export default function RewardTable({
 
   // CSV出力（UTF-8 BOM付き: 日本語版Excelで文字化けしない）
   function exportCSV() {
-    const headers = ["完了日", "管理番号", "商品名", "カテゴリー", "報酬", "支払状況", "支払日", "備考"];
+    // 外注報酬と立替経費は必ず別列にする（税理士提出・経費管理用）
+    const headers = [
+      "作業日", "スタッフ名", "商品名", "管理番号",
+      "梱包報酬", "写真撮影報酬", "動作確認報酬", "発送対応報酬", "作業報酬合計",
+      "郵便送料立替", "梱包資材立替", "その他立替", "立替金合計",
+      "支払総額", "領収書有無", "支払状況", "支払日", "備考",
+    ];
     const escape = (v: string) => `"${String(v ?? "").replace(/"/g, '""')}"`;
     const lines = [
       headers.join(","),
-      ...rows.map((r) =>
-        [
+      ...rows.map((r) => {
+        const rewardTotal =
+          r.packing_reward + r.photo_reward + r.operation_check_reward + r.handover_reward;
+        const expenseTotal =
+          r.postal_expense + r.packing_material_expense + r.other_expense;
+        return [
           r.completed_at,
-          r.control_number,
+          r.staff_name,
           r.name,
-          r.category,
-          String(r.reward_amount),
+          r.control_number,
+          String(r.packing_reward),
+          String(r.photo_reward),
+          String(r.operation_check_reward),
+          String(r.handover_reward),
+          String(rewardTotal),
+          String(r.postal_expense),
+          String(r.packing_material_expense),
+          String(r.other_expense),
+          String(expenseTotal),
+          String(rewardTotal + expenseTotal),
+          expenseTotal > 0 ? (r.has_receipt ? "あり" : "なし") : "",
           paymentStatusLabel(r.payment_status),
           r.paid_at ?? "",
           r.memo,
-        ].map(escape).join(",")
-      ),
+        ].map(escape).join(",");
+      }),
     ];
     const blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
