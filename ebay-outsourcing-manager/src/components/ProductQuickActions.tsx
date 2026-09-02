@@ -13,11 +13,16 @@ export default function ProductQuickActions({
   currentStatus,
   currentStaffId,
   staffList,
+  workStatus,
+  needsReviewReason,
 }: {
   productId: string;
   currentStatus: string;
   currentStaffId: string | null;
   staffList: Profile[];
+  /** 作業状況（要確認なら管理者が強制完了できる） */
+  workStatus?: string;
+  needsReviewReason?: string;
 }) {
   const router = useRouter();
   const [status, setStatus] = useState(currentStatus);
@@ -61,8 +66,47 @@ export default function ProductQuickActions({
     router.refresh();
   }
 
+  // 管理者権限で発送完了にする（スタッフ側で止まっている場合の対応）
+  async function forceComplete() {
+    if (
+      !window.confirm(
+        "管理者権限で発送完了にします。\nスタッフ側の必須作業（写真・動作確認など）が未完了でも完了扱いになります。よろしいですか？"
+      )
+    ) {
+      return;
+    }
+    setSaving(true);
+    setError("");
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("products")
+      .update({
+        status: "shipped",
+        has_problem: false,
+        shipped_date: new Date().toISOString().slice(0, 10),
+      })
+      .eq("id", productId);
+    setSaving(false);
+    if (error) { setError("完了処理に失敗しました: " + error.message); return; }
+    router.refresh();
+  }
+
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      {workStatus === "needs_review" && (
+        <div className="mb-3 rounded-lg border border-red-200 bg-red-50 p-3">
+          <p className="text-sm font-bold text-red-700">
+            ⚠ 要確認: {needsReviewReason || "確認が必要です"}
+          </p>
+          <p className="mt-1 text-xs text-red-600">
+            この状態ではスタッフは発送完了できません。内容を確認し、問題なければ下のボタンで完了できます。
+          </p>
+          <button onClick={forceComplete} disabled={saving}
+            className="mt-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-red-700 disabled:opacity-50">
+            管理者権限で発送完了にする
+          </button>
+        </div>
+      )}
       <div className="flex flex-wrap items-end gap-3">
         <div>
           <label className="mb-1 block text-xs font-semibold text-slate-500">

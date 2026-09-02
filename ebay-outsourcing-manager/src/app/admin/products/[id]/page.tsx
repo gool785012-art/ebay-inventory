@@ -213,6 +213,8 @@ export default async function ProductDetailPage(props: {
             currentStatus={product.status}
             currentStaffId={product.assigned_staff_id}
             staffList={staffList}
+            workStatus={product.work_status}
+            needsReviewReason={product.needs_review_reason}
           />
         </div>
 

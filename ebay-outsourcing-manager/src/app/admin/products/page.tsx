@@ -4,6 +4,7 @@ import StatusBadge from "@/components/StatusBadge";
 import DeadlineBadge from "@/components/DeadlineBadge";
 import { requireProfile } from "@/lib/auth";
 import { STATUSES } from "@/lib/constants";
+import { WORK_STATUSES, workStatusLabel, workStatusBadge } from "@/lib/workflow";
 import type { Category, Profile } from "@/types/db";
 
 // 商品一覧（管理者用）: 検索・絞り込み・期限警告（要件16, 17, 19）
@@ -21,11 +22,12 @@ export default async function ProductListPage(props: {
   const fShippedTo = sp.shipped_to ?? "";
   const fDeadlineTo = sp.deadline_to ?? "";
   const fPickup = sp.pickup ?? "";
+  const fWork = sp.work ?? "";
 
   let query = supabase
     .from("products")
     .select(
-      "id, control_number, name, status, arrival_date, ship_deadline, shipped_date, tracking_number, has_problem, category_id, assigned_staff_id, pickup_status"
+      "id, control_number, name, status, work_status, needs_review_reason, arrival_date, ship_deadline, shipped_date, tracking_number, has_problem, category_id, assigned_staff_id, pickup_status"
     )
     .order("created_at", { ascending: false });
 
@@ -44,6 +46,8 @@ export default async function ProductListPage(props: {
   if (fPickup === "waiting") {
     query = query.in("pickup_status", ["entered", "not_arranged"]).neq("status", "shipped");
   }
+  // ダッシュボードの作業状況カードからの遷移（Phase 11）
+  if (fWork) query = query.eq("work_status", fWork);
 
   const [{ data: products }, { data: categories }, { data: staffList }] =
     await Promise.all([
@@ -88,6 +92,23 @@ export default async function ProductListPage(props: {
                 placeholder="例: CAM-0001"
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
               />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate-500">
+                作業状況
+              </label>
+              <select
+                name="work"
+                defaultValue={fWork}
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              >
+                <option value="">すべて</option>
+                {WORK_STATUSES.map((s) => (
+                  <option key={s.key} value={s.key}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="mb-1 block text-xs font-semibold text-slate-500">
@@ -196,6 +217,7 @@ export default async function ProductListPage(props: {
                     <th className="px-3 py-2.5">商品名</th>
                     <th className="px-3 py-2.5">カテゴリー</th>
                     <th className="px-3 py-2.5">担当</th>
+                    <th className="px-3 py-2.5">作業状況</th>
                     <th className="px-3 py-2.5">ステータス</th>
                     <th className="px-3 py-2.5">発送期限</th>
                     <th className="px-3 py-2.5">追跡番号</th>
@@ -225,6 +247,12 @@ export default async function ProductListPage(props: {
                       </td>
                       <td className="px-3 py-2.5 text-slate-500">
                         {staffMap.get(p.assigned_staff_id) || "未割当"}
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <span className={`inline-block whitespace-nowrap rounded-full border px-2.5 py-0.5 text-xs font-bold ${workStatusBadge(p.work_status)}`}
+                          title={p.needs_review_reason}>
+                          {workStatusLabel(p.work_status)}
+                        </span>
                       </td>
                       <td className="px-3 py-2.5">
                         <StatusBadge status={p.status} />
