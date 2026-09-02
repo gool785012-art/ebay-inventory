@@ -28,6 +28,7 @@
 8. **集荷管理の設定（Phase 7以降で必要）**: 同じ手順で `ebay-outsourcing-manager/supabase/migrations/0005_pickup.sql` の内容も貼り付けて「Run」してください（集荷可能日時・集荷手配ステータス・集荷確定日時が使えるようになります）
 9. **追加作業・報酬の設定（Phase 9以降で必要）**: 同じ手順で `ebay-outsourcing-manager/supabase/migrations/0006_additional_work.sql` の内容も貼り付けて「Run」してください（商品状態の写真撮影・簡単な動作確認の要否と追加報酬が使えるようになります）
 10. **立替金管理の設定（Phase 10以降で必要）**: 同じ手順で `ebay-outsourcing-manager/supabase/migrations/0007_expenses.sql` の内容も貼り付けて「Run」してください（立替金の明細登録・領収書・承認が使えるようになります）
+11. **作業標準化の設定（Phase 11以降で必要）**: 同じ手順で `ebay-outsourcing-manager/supabase/migrations/0008_workflow.sql` の内容も貼り付けて「Run」してください（発送方法別の作業指示・動作確認テンプレート・マニュアル管理・月次精算が使えるようになります）
 
 ---
 

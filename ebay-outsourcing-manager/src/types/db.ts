@@ -71,6 +71,9 @@ export type Product = {
   reimbursement_note: string;
   operation_check_result: "ok" | "problem" | "unable" | null;
   operation_check_memo: string;
+  // 作業ステータス（Phase 11）
+  work_status: string;
+  needs_review_reason: string;
 };
 
 export type WorkReward = {

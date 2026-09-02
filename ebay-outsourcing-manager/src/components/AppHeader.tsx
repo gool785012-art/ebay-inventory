@@ -47,6 +47,18 @@ export default function AppHeader({
               報酬管理
             </Link>
             <Link
+              href="/admin/settlements"
+              className="rounded-lg px-3 py-1.5 text-slate-600 hover:bg-slate-100"
+            >
+              月次精算
+            </Link>
+            <Link
+              href="/admin/manuals"
+              className="rounded-lg px-3 py-1.5 text-slate-600 hover:bg-slate-100"
+            >
+              マニュアル
+            </Link>
+            <Link
               href="/admin/staff"
               className="rounded-lg px-3 py-1.5 text-slate-600 hover:bg-slate-100"
             >

@@ -10,6 +10,9 @@ import ShippingDocsStaff from "@/components/ShippingDocsStaff";
 import PickupStaff from "@/components/PickupStaff";
 import StaffTaskSummary from "@/components/StaffTaskSummary";
 import ExpensePanel from "@/components/ExpensePanel";
+import WorkTaskList from "@/components/WorkTaskList";
+import InspectionChecklist from "@/components/InspectionChecklist";
+import ManualLinks from "@/components/ManualLinks";
 import { requireProfile } from "@/lib/auth";
 import type {
   Product, Profile, ShippingDocument, ProductExpense, ExpenseReceipt,
@@ -65,6 +68,37 @@ export default async function StaffProductPage(props: {
   ]);
 
   if (!product) notFound();
+
+  // 動作確認テンプレート（カテゴリー別）とマニュアル（カテゴリー・発送会社別）
+  const [{ data: templates }, { data: inspectionResults }, { data: manuals }] = await Promise.all([
+    product.category_id
+      ? supabase
+          .from("inspection_templates")
+          .select("id, name, inspection_items(id, label, required, sort_order)")
+          .eq("category_id", product.category_id)
+          .eq("is_active", true)
+          .order("sort_order")
+      : Promise.resolve({ data: [] }),
+    supabase.from("product_inspections").select("item_id, checked, note").eq("product_id", id),
+    supabase
+      .from("manuals")
+      .select("id, title, description, file_path, file_name, category_id, carrier_id")
+      .eq("is_active", true)
+      .order("sort_order"),
+  ]);
+
+  type Template = {
+    id: number; name: string;
+    inspection_items: { id: number; label: string; required: boolean; sort_order: number }[];
+  };
+  const template = ((templates ?? []) as unknown as Template[])[0] ?? null;
+
+  // この商品に関係するマニュアルだけに絞る（カテゴリー・発送会社が一致、または「すべて」）
+  const relevantManuals = (manuals ?? []).filter(
+    (m) =>
+      (m.category_id === null || m.category_id === product.category_id) &&
+      (m.carrier_id === null || m.carrier_id === product.carrier_id)
+  );
 
   const carrierName =
     (carriers ?? []).find((c) => c.id === product.carrier_id)?.name ?? "";
@@ -125,6 +159,34 @@ export default async function StaffProductPage(props: {
             expenses={(expenses ?? []) as ProductExpense[]}
           />
         </div>
+
+        {/* 発送方法に応じた作業手順（Phase 11） */}
+        <div className="mb-4">
+          <WorkTaskList
+            carrierName={carrierName}
+            photoRequired={product.photo_required}
+            operationRequired={product.operation_check_required}
+          />
+        </div>
+
+        {/* 関連マニュアル（Phase 11） */}
+        {relevantManuals.length > 0 && (
+          <div className="mb-4">
+            <ManualLinks manuals={relevantManuals} />
+          </div>
+        )}
+
+        {/* カテゴリー別の動作確認テンプレート（Phase 11） */}
+        {product.operation_check_required && template && (
+          <div className="mb-4">
+            <InspectionChecklist
+              productId={product.id}
+              templateName={template.name}
+              items={[...template.inspection_items].sort((a, b) => a.sort_order - b.sort_order)}
+              results={inspectionResults ?? []}
+            />
+          </div>
+        )}
 
         {/* 立替金の登録（Phase 10） */}
         <div className="mb-4">
