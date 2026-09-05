@@ -56,15 +56,26 @@ export default function RewardTable({
     router.refresh();
   }
 
-  async function saveAmount(id: string) {
+  // 報酬額(reward_amount)を手動修正した場合、内訳（梱包/写真/動作確認/集荷・持ち込み/立替金）の
+  // 合計と食い違わないよう、差額を梱包報酬(packing_reward)に反映して整合性を保つ。
+  // reward_amount = packing_reward + photo_reward + operation_check_reward
+  //               + handover_reward + reimbursement という前提を、
+  // 手動編集後も常に成立させるための調整。
+  async function saveAmount(row: RewardRow) {
     const amount = Number(editAmount);
     if (isNaN(amount) || amount < 0) { setError("金額が正しくありません"); return; }
+    const delta = amount - row.reward_amount;
+    const newPackingReward = row.packing_reward + delta;
+    if (newPackingReward < 0) {
+      setError("この金額には修正できません（梱包報酬がマイナスになってしまいます）");
+      return;
+    }
     setError("");
     const supabase = createClient();
     const { error: err } = await supabase
       .from("work_rewards")
-      .update({ reward_amount: amount })
-      .eq("id", id);
+      .update({ reward_amount: amount, packing_reward: newPackingReward })
+      .eq("id", row.id);
     if (err) { setError("変更に失敗しました: " + err.message); return; }
     setEditingId(null);
     router.refresh();
@@ -171,7 +182,7 @@ export default function RewardTable({
                           className="w-24 rounded-lg border border-blue-300 px-2 py-1 text-right text-sm"
                           autoFocus
                         />
-                        <button onClick={() => saveAmount(r.id)}
+                        <button onClick={() => saveAmount(r)}
                           className="rounded bg-blue-600 px-2 py-1 text-xs font-bold text-white">保存</button>
                         <button onClick={() => setEditingId(null)}
                           className="rounded border border-slate-300 px-2 py-1 text-xs text-slate-500">×</button>
