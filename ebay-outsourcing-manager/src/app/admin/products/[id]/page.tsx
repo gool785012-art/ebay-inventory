@@ -285,10 +285,7 @@ export default async function ProductDetailPage(props: {
 
         {/* 写真 */}
         <div className="mt-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="mb-3 text-base font-bold text-slate-700">
-            写真（{(photos ?? []).length}枚）
-          </h2>
-          <PhotoGallery photos={photos ?? []} />
+          <PhotoGallery photos={photos ?? []} heading="写真" canDelete />
           <div className="mt-4">
             <PhotoUpload productId={product.id} />
           </div>
