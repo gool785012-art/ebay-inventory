@@ -285,7 +285,7 @@ export default async function ProductDetailPage(props: {
 
         {/* 写真 */}
         <div className="mt-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <PhotoGallery photos={photos ?? []} heading="写真" />
+          <PhotoGallery photos={photos ?? []} heading="写真" canDelete />
           <div className="mt-4">
             <PhotoUpload productId={product.id} />
           </div>

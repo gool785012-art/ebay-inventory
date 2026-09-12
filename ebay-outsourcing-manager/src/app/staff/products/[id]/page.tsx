@@ -231,7 +231,12 @@ export default async function StaffProductPage(props: {
 
         {/* 写真一覧 */}
         <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <PhotoGallery photos={photos ?? []} heading="アップロード済みの写真" />
+          <PhotoGallery
+            photos={photos ?? []}
+            heading="アップロード済みの写真"
+            /* 自分の担当商品のときだけ削除できる（要件6） */
+            canDelete={product.assigned_staff_id === profile.id}
+          />
         </div>
 
         {/* コメント */}

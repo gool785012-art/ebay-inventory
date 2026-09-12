@@ -174,8 +174,8 @@ export default function PhotoGallery({
                         setError("");
                         setConfirmTarget(p);
                       }}
-                      className={`absolute right-1 top-1 flex h-8 w-8 items-center justify-center rounded-full text-base font-bold text-white shadow-md transition ${
-                        busy ? "bg-slate-400" : "bg-red-600 hover:bg-red-700"
+                      className={`absolute right-2 top-2 z-10 flex h-9 w-9 items-center justify-center rounded-full text-base font-bold leading-none text-white shadow-lg ring-2 ring-white transition ${
+                        busy ? "bg-slate-400" : "bg-red-600 hover:bg-red-700 active:bg-red-800"
                       }`}
                     >
                       {busy ? "…" : "✕"}
@@ -183,7 +183,7 @@ export default function PhotoGallery({
                   )}
 
                   {busy && (
-                    <span className="absolute inset-0 flex items-center justify-center rounded-lg bg-white/70 text-xs font-bold text-slate-600">
+                    <span className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-lg bg-white/70 text-xs font-bold text-slate-600">
                       削除中...
                     </span>
                   )}
