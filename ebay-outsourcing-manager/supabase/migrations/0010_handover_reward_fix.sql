@@ -55,6 +55,26 @@ as $$
 $$;
 
 -- ─── 3. 既存データの修正 ───────────────────────────────────────
+-- 既存の products_enforce_staff_update トリガーは
+-- 「管理者以外による handover_reward の変更」を禁止している。
+-- SQL Editor では auth.uid() が NULL のため is_admin() が false になり、
+-- そのままでは下の修正UPDATEが弾かれてしまう。
+-- そのため、この修正の間だけ当該トリガーを外し、終わったら必ず元に戻す。
+-- 全体を1つのトランザクションにしているので、途中で失敗しても
+-- トリガーが外れたままになることはない（すべて巻き戻る）。
+begin;
+
+do $$
+begin
+  if exists (
+    select 1 from pg_trigger
+    where tgname = 'products_enforce_staff_update'
+      and tgrelid = 'public.products'::regclass
+  ) then
+    alter table public.products disable trigger products_enforce_staff_update;
+  end if;
+end $$;
+
 -- 3-1. 保存済みの金額から報酬種別を復元する（201 は旧仕様のDHL集荷）
 update public.products
 set handover_reward_method = case
@@ -84,6 +104,20 @@ where handover_reward is distinct from public.normalize_handover_reward(handover
 update public.work_rewards
 set handover_reward = public.normalize_handover_reward(handover_reward)
 where handover_reward is distinct from public.normalize_handover_reward(handover_reward);
+
+-- 3-5. 外したトリガーを必ず元に戻す
+do $$
+begin
+  if exists (
+    select 1 from pg_trigger
+    where tgname = 'products_enforce_staff_update'
+      and tgrelid = 'public.products'::regclass
+  ) then
+    alter table public.products enable trigger products_enforce_staff_update;
+  end if;
+end $$;
+
+commit;
 
 -- ─── 4. 今後 1円単位の端数が保存されないようにする ────────────────
 alter table public.products
