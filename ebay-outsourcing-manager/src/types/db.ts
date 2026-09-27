@@ -66,6 +66,7 @@ export type Product = {
   // 追加作業・報酬（Phase 9）
   photo_required: boolean;
   operation_check_required: boolean;
+  handover_reward_method: string;
   handover_reward: number;
   reimbursement: number;
   reimbursement_note: string;

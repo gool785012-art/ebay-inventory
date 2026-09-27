@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { calcWorkRewardTotal, normalizeHandoverReward } from "@/lib/reward";
 import { PAYMENT_STATUSES, paymentStatusLabel, fmtYen } from "@/lib/constants";
 
 export type RewardRow = {
@@ -83,8 +84,8 @@ export default function RewardTable({
     const lines = [
       headers.join(","),
       ...rows.map((r) => {
-        const rewardTotal =
-          r.packing_reward + r.photo_reward + r.operation_check_reward + r.handover_reward;
+        const rewardTotal = calcWorkRewardTotal(r);
+        const handoverReward = normalizeHandoverReward(r.handover_reward);
         const expenseTotal =
           r.postal_expense + r.packing_material_expense + r.other_expense;
         return [
@@ -95,7 +96,7 @@ export default function RewardTable({
           String(r.packing_reward),
           String(r.photo_reward),
           String(r.operation_check_reward),
-          String(r.handover_reward),
+          String(handoverReward),
           String(rewardTotal),
           String(r.postal_expense),
           String(r.packing_material_expense),

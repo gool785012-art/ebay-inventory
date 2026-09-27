@@ -3,6 +3,7 @@ import AppHeader from "@/components/AppHeader";
 import SettlementStatus from "@/components/SettlementStatus";
 import { requireProfile } from "@/lib/auth";
 import { fmtYen } from "@/lib/constants";
+import { calcRewardBreakdown } from "@/lib/reward";
 import { parseMonth, monthRange, shiftMonth, monthLabel } from "@/lib/month";
 import type { Profile } from "@/types/db";
 
@@ -38,11 +39,7 @@ export default async function SettlementsPage(props: {
 
   const rows = ((staffList ?? []) as Profile[]).map((s) => {
     const myRewards = (rewards ?? []).filter((r) => r.staff_id === s.id);
-    const rewardTotal = myRewards.reduce(
-      (sum, r) =>
-        sum + r.packing_reward + r.photo_reward + r.operation_check_reward + r.handover_reward,
-      0
-    );
+    const rewardTotal = calcRewardBreakdown(myRewards).total;
     const expenseTotal = expRows
       .filter((e) => e.products?.assigned_staff_id === s.id)
       .reduce((sum, e) => sum + e.amount, 0);

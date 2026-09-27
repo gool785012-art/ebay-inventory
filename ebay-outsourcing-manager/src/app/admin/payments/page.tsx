@@ -4,6 +4,7 @@ import RewardTable, { type RewardRow } from "@/components/RewardTable";
 import BulkPayButton from "@/components/BulkPayButton";
 import { requireProfile } from "@/lib/auth";
 import { PAYMENT_STATUSES, fmtYen } from "@/lib/constants";
+import { calcRewardBreakdown } from "@/lib/reward";
 import { parseMonth, monthRange, shiftMonth, monthLabel } from "@/lib/month";
 import type { Category } from "@/types/db";
 
@@ -86,17 +87,15 @@ export default async function AdminPaymentsPage(props: {
   });
 
   // 報酬の内訳（Phase 9: 項目別の月次集計）
-  const raw = (rewards ?? []) as unknown as RawReward[];
-  const sum = (key: keyof RawReward) =>
-    raw.reduce((s, r) => s + (Number(r[key]) || 0), 0);
-  // 作業報酬の内訳
+  // カード・内訳・テーブル・CSV がすべて同じ計算元になるよう calcRewardBreakdown に統一する
+  const breakdown = calcRewardBreakdown(allRows);
   const rewardBreakdown = [
-    { label: "梱包報酬", value: sum("packing_reward") },
-    { label: "写真撮影報酬", value: sum("photo_reward") },
-    { label: "動作確認報酬", value: sum("operation_check_reward") },
-    { label: "集荷・持ち込み", value: sum("handover_reward") },
+    { label: "梱包報酬", value: breakdown.packing },
+    { label: "写真撮影報酬", value: breakdown.photo },
+    { label: "動作確認報酬", value: breakdown.operationCheck },
+    { label: "集荷・持ち込み", value: breakdown.handover },
   ].filter((b) => b.value > 0);
-  const rewardSubtotal = rewardBreakdown.reduce((s, b) => s + b.value, 0);
+  const rewardSubtotal = breakdown.total;
 
   // 立替金の内訳（作業報酬とは別項目）
   const expenseBreakdown = [
@@ -107,6 +106,9 @@ export default async function AdminPaymentsPage(props: {
   const expenseSubtotal = expenseBreakdown.reduce((s, b) => s + b.value, 0);
 
   // カードはその月の全件で集計（絞り込みの影響を受けない）
+  // reward_amount は管理者が明細から手修正できる「確定金額」なのでそのまま使う。
+  // 内訳（下の支払明細）と食い違わないよう、DB側のトリガーで
+  // reward_amount = 各内訳の合計 + 立替金 を保つようにしている（0010のSQL）。
   const totalCount = allRows.length;
   const totalAmount = allRows.reduce((s, r) => s + r.reward_amount, 0);
   const unpaidRows = allRows.filter((r) => r.payment_status === "unpaid");

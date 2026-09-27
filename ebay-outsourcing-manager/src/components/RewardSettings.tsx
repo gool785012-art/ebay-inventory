@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { fmtYen } from "@/lib/constants";
 import {
-  calcReward, HANDOVER_REWARDS, handoverRewardLabel,
+  calcReward, HANDOVER_OPTIONS, handoverAmount, handoverMethodLabel, resolveHandoverMethod,
   operationCheckLabel, operationCheckBadge,
 } from "@/lib/reward";
 import type { Product } from "@/types/db";
@@ -29,7 +29,11 @@ export default function RewardSettings({
   const router = useRouter();
   const [photo, setPhoto] = useState(product.photo_required);
   const [operation, setOperation] = useState(product.operation_check_required);
-  const [handover, setHandover] = useState(product.handover_reward);
+  // 集荷方法そのものを保持する。金額は方法から引くので差額計算は一切しない
+  const [handoverMethod, setHandoverMethod] = useState(
+    resolveHandoverMethod(product.handover_reward_method, product.handover_reward) as string
+  );
+  const handover = handoverAmount(handoverMethod);
   const [reimbursement, setReimbursement] = useState(String(product.reimbursement || ""));
   const [reimbursementNote, setReimbursementNote] = useState(product.reimbursement_note);
   const [saving, setSaving] = useState(false);
@@ -47,7 +51,7 @@ export default function RewardSettings({
   const changed =
     photo !== product.photo_required ||
     operation !== product.operation_check_required ||
-    handover !== product.handover_reward ||
+    handoverMethod !== resolveHandoverMethod(product.handover_reward_method, product.handover_reward) ||
     (Number(reimbursement) || 0) !== product.reimbursement ||
     reimbursementNote !== product.reimbursement_note;
 
@@ -60,7 +64,9 @@ export default function RewardSettings({
       .update({
         photo_required: photo,
         operation_check_required: operation,
-        handover_reward: handover,
+        handover_reward_method: handoverMethod,
+        // 選択された方法の金額で丸ごと上書きする（旧金額への加減算はしない）
+        handover_reward: handoverAmount(handoverMethod),
         reimbursement: Number(reimbursement) || 0,
         reimbursement_note: reimbursementNote,
       })
@@ -76,7 +82,7 @@ export default function RewardSettings({
     { label: packingLabel, value: r.packingReward, show: true },
     { label: "商品状態の写真撮影", value: r.photoReward, show: photo },
     { label: "簡単な動作確認", value: r.operationCheckReward, show: operation },
-    { label: handoverRewardLabel(handover), value: r.handoverReward, show: r.handoverReward > 0 },
+    { label: handoverMethodLabel(handoverMethod), value: r.handoverReward, show: r.handoverReward > 0 },
   ].filter((row) => row.show);
 
   // 作業報酬（立替金を除いた金額）
@@ -127,9 +133,9 @@ export default function RewardSettings({
           <label className="mb-1 block text-xs font-semibold text-slate-600">
             集荷・持ち込み報酬
           </label>
-          <select value={handover} onChange={(e) => setHandover(Number(e.target.value))}
+          <select value={handoverMethod} onChange={(e) => setHandoverMethod(e.target.value)}
             className={inputCls}>
-            {HANDOVER_REWARDS.map((h) => (
+            {HANDOVER_OPTIONS.map((h) => (
               <option key={h.key} value={h.key}>{h.label}</option>
             ))}
           </select>
