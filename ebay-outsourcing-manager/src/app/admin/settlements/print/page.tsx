@@ -1,7 +1,9 @@
 import { requireProfile } from "@/lib/auth";
 import { fmtYen } from "@/lib/constants";
 import { parseMonth, monthRange, monthLabel } from "@/lib/month";
-import { expenseTypeLabel } from "@/lib/reward";
+import {
+  expenseTypeLabel, normalizeHandoverReward, calcWorkRewardTotal,
+} from "@/lib/reward";
 import PrintButton from "@/components/PrintButton";
 
 // 月次精算書（管理者用、Phase 11）
@@ -55,7 +57,7 @@ export default async function SettlementPrintPage(props: {
   const packing = sum(rewardRows.map((r) => r.packing_reward));
   const photo = sum(rewardRows.map((r) => r.photo_reward));
   const operation = sum(rewardRows.map((r) => r.operation_check_reward));
-  const handover = sum(rewardRows.map((r) => r.handover_reward));
+  const handover = sum(rewardRows.map((r) => normalizeHandoverReward(r.handover_reward)));
   const rewardTotal = packing + photo + operation + handover;
 
   const postal = sum(expenseRows.filter((e) => e.expense_type === "postal_postage").map((e) => e.amount));
@@ -77,12 +79,13 @@ export default async function SettlementPrintPage(props: {
     if (r.packing_reward) detail.push(`梱包 ${fmtYen(r.packing_reward)}`);
     if (r.photo_reward) detail.push(`写真撮影 ${fmtYen(r.photo_reward)}`);
     if (r.operation_check_reward) detail.push(`動作確認 ${fmtYen(r.operation_check_reward)}`);
-    if (r.handover_reward) detail.push(`集荷・持込 ${fmtYen(r.handover_reward)}`);
+    const handoverReward = normalizeHandoverReward(r.handover_reward);
+    if (handoverReward) detail.push(`集荷・持込 ${fmtYen(handoverReward)}`);
     detailMap.set(r.product_id, {
       date: r.completed_at,
       name: r.products?.name ?? "",
       control: r.products?.control_number ?? "",
-      reward: r.packing_reward + r.photo_reward + r.operation_check_reward + r.handover_reward,
+      reward: calcWorkRewardTotal(r),
       rewardDetail: detail,
       expense: 0,
       expenseDetail: [],

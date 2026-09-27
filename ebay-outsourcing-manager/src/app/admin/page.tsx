@@ -2,6 +2,7 @@ import Link from "next/link";
 import AppHeader from "@/components/AppHeader";
 import { requireProfile } from "@/lib/auth";
 import { fmtYen } from "@/lib/constants";
+import { calcRewardBreakdown } from "@/lib/reward";
 import { parseMonth, monthRange, monthLabel } from "@/lib/month";
 import { WORK_STATUSES, workStatusLabel } from "@/lib/workflow";
 
@@ -64,10 +65,7 @@ export default async function AdminDashboard() {
     .reduce((s, e) => s + e.amount, 0);
 
   // 外注報酬（今月）
-  const rewardTotal = (rewards ?? []).reduce(
-    (s, r) => s + r.packing_reward + r.photo_reward + r.operation_check_reward + r.handover_reward,
-    0
-  );
+  const rewardTotal = calcRewardBreakdown(rewards ?? []).total;
 
   // 発送会社別の件数（今月発送分）
   const shippedThisMonth = items.filter(

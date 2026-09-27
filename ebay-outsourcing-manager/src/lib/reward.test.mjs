@@ -8,8 +8,15 @@ import assert from "node:assert/strict";
 const PHOTO_REWARD = 100;
 const OPERATION_CHECK_REWARD = 200;
 
+// 集荷・持ち込み報酬は 0/200/300/500 のみ。旧データの 201 などは直近下位へ丸める
+const HANDOVER_ALLOWED_AMOUNTS = [0, 200, 300, 500];
 function normalizeHandoverReward(value) {
-  return value === 201 ? 200 : value;
+  const n = Number(value) || 0;
+  if (n <= 0) return 0;
+  if (HANDOVER_ALLOWED_AMOUNTS.includes(n)) return n;
+  let result = 0;
+  for (const a of HANDOVER_ALLOWED_AMOUNTS) if (a <= n && a > result) result = a;
+  return result;
 }
 
 function calcReward(input) {
@@ -51,6 +58,14 @@ test("ケース4: 梱包500円 / 写真あり / 動作確認あり → 800円", 
 });
 
 test("ケース5: 梱包500円 / 写真あり / 動作確認あり / DHL集荷200円 → 1,000円", () => {
+  const r = calcReward({
+    packingReward: 500, photoRequired: true, operationCheckRequired: true, handoverReward: 200,
+  });
+  assert.equal(r.handoverReward, 200);
+  assert.equal(r.totalReward, 1000);
+});
+
+test("旧データの201円が残っていても200円として計算する", () => {
   const r = calcReward({
     packingReward: 500, photoRequired: true, operationCheckRequired: true, handoverReward: 201,
   });

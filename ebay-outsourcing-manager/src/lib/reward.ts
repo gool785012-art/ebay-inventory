@@ -5,24 +5,86 @@
 export const PHOTO_REWARD = 100;           // 商品状態の写真撮影
 export const OPERATION_CHECK_REWARD = 200; // 簡単な動作確認
 
-/** 集荷・持ち込みの報酬（回ごと） */
-export const HANDOVER_REWARDS = [
-  { key: 0,   label: "なし" },
-  { key: 200, label: "西濃集荷（200円）" },
-  { key: 201, label: "DHL集荷（200円）" },
-  { key: 300, label: "郵便局持ち込み（300円）" },
-  { key: 500, label: "郵便局持ち込み・多い/重い（500円）" },
+/**
+ * 集荷・持ち込みの報酬（回ごと）
+ *
+ * 「どの方法か」は key（文字列）で持ち、金額は amount で持つ。
+ * 以前は選択肢の値に金額そのものを使っていたため、金額が同じ
+ * 「西濃集荷（200円）」と「DHL集荷（200円）」を区別できず、
+ * DHLだけ 201 という実在しない金額を保存していた（1円の端数の原因）。
+ * 金額は必ずこの表から引き、選択肢の区別には使わない。
+ */
+export const HANDOVER_OPTIONS = [
+  { key: "",           amount: 0,   label: "なし" },
+  { key: "seino",      amount: 200, label: "西濃集荷（200円）" },
+  { key: "dhl",        amount: 200, label: "DHL集荷（200円）" },
+  { key: "post",       amount: 300, label: "郵便局持ち込み（300円）" },
+  { key: "post_heavy", amount: 500, label: "郵便局持ち込み・多い/重い（500円）" },
 ] as const;
 
-// DHL集荷は金額が西濃と同じ200円のため、選択肢の区別用に201を使い、金額としては200円に丸める
-export function normalizeHandoverReward(value: number): number {
-  return value === 201 ? 200 : value;
+export type HandoverMethodKey = (typeof HANDOVER_OPTIONS)[number]["key"];
+
+/** 集荷・持ち込み報酬として保存してよい金額 */
+export const HANDOVER_ALLOWED_AMOUNTS: readonly number[] = [0, 200, 300, 500];
+
+/** 集荷方法 → 金額（金額の唯一の決定元。差額計算はせず常にこの値で上書きする） */
+export function handoverAmount(methodKey: string): number {
+  return HANDOVER_OPTIONS.find((h) => h.key === methodKey)?.amount ?? 0;
 }
 
+/** 集荷方法 → 表示名 */
+export function handoverMethodLabel(methodKey: string): string {
+  return HANDOVER_OPTIONS.find((h) => h.key === methodKey)?.label ?? "なし";
+}
+
+/**
+ * 集荷・持ち込み報酬の正規化（集計前の防御）
+ *
+ * 許可された金額（0/200/300/500）以外がDBに残っていても
+ * 1円単位の端数が集計に混ざらないよう、直近下位の許可金額へ丸める。
+ * 例: 201→200 / 301→300 / 501→500
+ * ※この正規化は「集荷・持ち込み報酬」専用。他の報酬項目には適用しない。
+ */
+export function normalizeHandoverReward(value: number | null | undefined): number {
+  const n = Number(value) || 0;
+  if (n <= 0) return 0;
+  if (HANDOVER_ALLOWED_AMOUNTS.includes(n)) return n;
+  let result = 0;
+  for (const allowed of HANDOVER_ALLOWED_AMOUNTS) {
+    if (allowed <= n && allowed > result) result = allowed;
+  }
+  return result;
+}
+
+/**
+ * 旧データ（金額だけが保存されている行）から集荷方法を推定する。
+ * 201 は旧仕様のDHL集荷を表す値。
+ */
+export function handoverMethodFromReward(value: number | null | undefined): HandoverMethodKey {
+  const n = Number(value) || 0;
+  if (n === 201) return "dhl";
+  if (n >= 500) return "post_heavy";
+  if (n >= 300) return "post";
+  if (n >= 200) return "seino";
+  return "";
+}
+
+/** 保存済みの集荷方法（なければ旧データの金額から推定）を返す */
+export function resolveHandoverMethod(
+  methodKey: string | null | undefined,
+  rewardValue: number | null | undefined
+): HandoverMethodKey {
+  if (methodKey && HANDOVER_OPTIONS.some((h) => h.key === methodKey)) {
+    return methodKey as HandoverMethodKey;
+  }
+  return handoverMethodFromReward(rewardValue);
+}
+
+/** 金額から表示名を求める（集荷方法が未保存の旧データ用） */
 export function handoverRewardLabel(value: number): string {
-  const found = HANDOVER_REWARDS.find((h) => h.key === value);
-  if (found) return found.label;
-  return value > 0 ? `${value.toLocaleString("ja-JP")}円` : "なし";
+  const normalized = normalizeHandoverReward(value);
+  if (normalized === 0) return "なし";
+  return handoverMethodLabel(handoverMethodFromReward(value));
 }
 
 export type RewardInput = {
@@ -178,4 +240,41 @@ export function validateAmount(input: string): { ok: boolean; value: number; mes
     return { ok: true, value, message: "金額が10万円を超えています。入力内容をご確認ください" };
   }
   return { ok: true, value };
+}
+
+// ─── 月次集計の共通ロジック ────────────────────────────────────
+// 「今月の報酬合計」「未払い」「作業報酬合計」「最終支払額」「CSV出力」が
+// 別々の式で計算されて食い違わないよう、すべてここを経由させる。
+
+/** work_rewards 1行分の報酬内訳（集計に必要な列だけ） */
+export type WorkRewardRow = {
+  packing_reward: number;
+  photo_reward: number;
+  operation_check_reward: number;
+  handover_reward: number;
+};
+
+/** 作業報酬の合計（立替金は含めない）。集荷・持ち込みは正規化してから足す */
+export function calcWorkRewardTotal(row: WorkRewardRow): number {
+  return (
+    (Number(row.packing_reward) || 0) +
+    (Number(row.photo_reward) || 0) +
+    (Number(row.operation_check_reward) || 0) +
+    normalizeHandoverReward(row.handover_reward)
+  );
+}
+
+/** 作業報酬の項目別合計（画面の内訳表示用） */
+export function calcRewardBreakdown(rows: WorkRewardRow[]) {
+  const packing = rows.reduce((s, r) => s + (Number(r.packing_reward) || 0), 0);
+  const photo = rows.reduce((s, r) => s + (Number(r.photo_reward) || 0), 0);
+  const operationCheck = rows.reduce((s, r) => s + (Number(r.operation_check_reward) || 0), 0);
+  const handover = rows.reduce((s, r) => s + normalizeHandoverReward(r.handover_reward), 0);
+  return {
+    packing,
+    photo,
+    operationCheck,
+    handover,
+    total: packing + photo + operationCheck + handover,
+  };
 }

@@ -2,7 +2,9 @@ import Link from "next/link";
 import AppHeader from "@/components/AppHeader";
 import { requireProfile } from "@/lib/auth";
 import { paymentStatusLabel, paymentBadgeClass, fmtYen } from "@/lib/constants";
-import { expenseTypeLabel, expenseStatusLabel, expenseStatusBadge } from "@/lib/reward";
+import {
+  expenseTypeLabel, expenseStatusLabel, expenseStatusBadge, calcWorkRewardTotal,
+} from "@/lib/reward";
 import { parseMonth, monthRange, shiftMonth, monthLabel } from "@/lib/month";
 
 function fmtDate(d: string) {
@@ -57,8 +59,7 @@ export default async function StaffRewardsPage(props: {
 
   const totalCount = rows.length;
   // 作業報酬（立替金を除いた金額）
-  const rewardOnly = (r: Row) =>
-    r.packing_reward + r.photo_reward + r.operation_check_reward + r.handover_reward;
+  const rewardOnly = (r: Row) => calcWorkRewardTotal(r);
   const totalAmount = rows.reduce((s, r) => s + rewardOnly(r), 0);
   const unpaidAmount = rows
     .filter((r) => r.payment_status === "unpaid")
