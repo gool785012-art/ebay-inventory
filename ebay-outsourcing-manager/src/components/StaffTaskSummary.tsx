@@ -1,6 +1,16 @@
 import { fmtYen } from "@/lib/constants";
-import { calcStaffPayment, expenseTypeLabel } from "@/lib/reward";
+import {
+  calcStaffPayment, calcExpenseTotal, expenseTypeLabel, normalizeHandoverReward,
+} from "@/lib/reward";
 import type { Product, ProductExpense } from "@/types/db";
+
+/** 発送完了時に確定した報酬（work_rewards の内訳） */
+export type ConfirmedReward = {
+  packing_reward: number;
+  photo_reward: number;
+  operation_check_reward: number;
+  handover_reward: number;
+};
 
 // 「今回の作業」と報酬・立替金の表示（スタッフ用、Phase 9/10）
 // 作業報酬と立替金は必ず別項目として表示する
@@ -8,12 +18,16 @@ export default function StaffTaskSummary({
   product,
   packingReward,
   expenses = [],
+  confirmed = null,
 }: {
   product: Product;
+  /** 梱包報酬（商品ごとの上書きがあればその金額、なければカテゴリー標準報酬） */
   packingReward: number;
   expenses?: ProductExpense[];
+  /** 発送完了後は確定済みの金額をそのまま表示する（管理者画面と必ず一致させる） */
+  confirmed?: ConfirmedReward | null;
 }) {
-  const p = calcStaffPayment(
+  const estimated = calcStaffPayment(
     {
       packingReward,
       photoRequired: product.photo_required,
@@ -22,7 +36,25 @@ export default function StaffTaskSummary({
     },
     expenses
   );
-  const r = p.reward;
+
+  // 確定済みならその内訳を、まだなら見込みの計算結果を表示する
+  const r = confirmed
+    ? {
+        packingReward: confirmed.packing_reward,
+        photoReward: confirmed.photo_reward,
+        operationCheckReward: confirmed.operation_check_reward,
+        handoverReward: normalizeHandoverReward(confirmed.handover_reward),
+      }
+    : estimated.reward;
+
+  const expenseTotal = calcExpenseTotal(expenses);
+  const staffRewardTotal =
+    r.packingReward + r.photoReward + r.operationCheckReward + r.handoverReward;
+  const p = {
+    expenseTotal,
+    staffRewardTotal,
+    staffPaymentTotal: staffRewardTotal + expenseTotal,
+  };
 
   const tasks = [
     { label: "商品状態の写真撮影", show: product.photo_required },
@@ -100,7 +132,13 @@ export default function StaffTaskSummary({
       <div className="rounded-lg bg-blue-600 px-4 py-3">
         <div className="flex items-center">
           <span className="text-sm font-bold text-white">
-            {expenses.length > 0 ? "支払予定額（報酬＋立替金）" : "報酬予定"}
+            {confirmed
+              ? expenses.length > 0
+                ? "確定額（報酬＋立替金）"
+                : "確定報酬"
+              : expenses.length > 0
+                ? "支払予定額（報酬＋立替金）"
+                : "報酬予定"}
           </span>
           <span className="flex-1" />
           <span className="text-2xl font-bold text-white">{fmtYen(p.staffPaymentTotal)}</span>
