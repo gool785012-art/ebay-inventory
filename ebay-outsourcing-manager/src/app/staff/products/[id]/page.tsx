@@ -111,6 +111,22 @@ export default async function StaffProductPage(props: {
         .single()
     : { data: null };
 
+  // 梱包報酬は「商品ごとの上書き（product_fees）→ なければカテゴリー標準報酬」の順。
+  // 管理者画面と同じ順序で求めないと、上書きした金額がスタッフ側に反映されない。
+  const { data: feeRow } = await supabase
+    .from("product_fees")
+    .select("amount")
+    .eq("product_id", id)
+    .maybeSingle();
+  const packingReward = feeRow?.amount ?? category?.default_fee ?? 0;
+
+  // 発送完了後は確定済みの報酬をそのまま表示する（管理者画面と必ず一致させる）
+  const { data: confirmedReward } = await supabase
+    .from("work_rewards")
+    .select("packing_reward, photo_reward, operation_check_reward, handover_reward")
+    .eq("product_id", id)
+    .maybeSingle();
+
   // コメント投稿者名（自分と管理者のみ表示できればよい）
   const { data: authors } = await supabase.from("profiles").select("*");
   const authorMap = new Map((authors ?? []).map((p: Profile) => [p.id, p]));
@@ -155,8 +171,9 @@ export default async function StaffProductPage(props: {
         <div className="mb-4">
           <StaffTaskSummary
             product={product}
-            packingReward={category?.default_fee ?? 0}
+            packingReward={packingReward}
             expenses={(expenses ?? []) as ProductExpense[]}
+            confirmed={confirmedReward ?? null}
           />
         </div>
 
