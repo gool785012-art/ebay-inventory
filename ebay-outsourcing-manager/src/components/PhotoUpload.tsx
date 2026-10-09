@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { PHOTO_CATEGORIES } from "@/lib/constants";
+import { resizeImage } from "@/lib/image-resize";
 
 // 写真アップロード部品（スマホのカメラ撮影・複数枚対応、要件9）
 // category を渡すと固定カテゴリー、渡さなければカテゴリー選択式（管理者用）
@@ -32,7 +33,9 @@ export default function PhotoUpload({
       data: { user },
     } = await supabase.auth.getUser();
 
-    for (const file of Array.from(files)) {
+    for (const original of Array.from(files)) {
+      // 送信データ量を抑えるため、保存前にブラウザ側で縮小する（長辺1600px・JPEG）
+      const file = await resizeImage(original);
       const ext = file.name.split(".").pop() || "jpg";
       const path = `${productId}/${selectedCategory}/${Date.now()}-${Math.floor(Math.random() * 10000)}.${ext}`;
 
