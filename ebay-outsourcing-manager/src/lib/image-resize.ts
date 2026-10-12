@@ -60,6 +60,55 @@ async function decode(file: File): Promise<{ source: CanvasImageSource; width: n
   }
 }
 
+function makeCanvas(w: number, h: number) {
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  if (ctx) {
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+  }
+  return { canvas, ctx };
+}
+
+/**
+ * 画像を目的の大きさに描画したキャンバスを返す。
+ * - 一度に大きく縮めると細い線や文字（型番・シリアル）が潰れやすいため、
+ *   目的サイズの2倍を下回るまで半分ずつ縮めてから最後に合わせる。
+ * - JPEG は透明を持てず、透明部分が黒になってしまうため、
+ *   先に白で塗ってから描画する（PNG のスクリーンショット等への対策）。
+ */
+function drawScaled(
+  source: CanvasImageSource,
+  srcW: number,
+  srcH: number,
+  dstW: number,
+  dstH: number
+): HTMLCanvasElement | null {
+  let current: CanvasImageSource = source;
+  let curW = srcW;
+  let curH = srcH;
+
+  while (curW / 2 >= dstW && curH / 2 >= dstH) {
+    const nextW = Math.round(curW / 2);
+    const nextH = Math.round(curH / 2);
+    const step = makeCanvas(nextW, nextH);
+    if (!step.ctx) return null;
+    step.ctx.drawImage(current, 0, 0, nextW, nextH);
+    current = step.canvas;
+    curW = nextW;
+    curH = nextH;
+  }
+
+  const out = makeCanvas(dstW, dstH);
+  if (!out.ctx) return null;
+  out.ctx.fillStyle = "#ffffff";
+  out.ctx.fillRect(0, 0, dstW, dstH);
+  out.ctx.drawImage(current, 0, 0, dstW, dstH);
+  return out.canvas;
+}
+
 /**
  * 写真を縮小して返す。縮小できない・効果がない場合は元のファイルをそのまま返す
  * （アップロード自体は止めない）。
@@ -81,12 +130,8 @@ export async function resizeImage(file: File): Promise<File> {
     // すでに小さい写真は再圧縮で劣化させない
     if (!needsResize && file.size <= SKIP_BELOW_BYTES) return file;
 
-    const canvas = document.createElement("canvas");
-    canvas.width = width;
-    canvas.height = height;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return file;
-    ctx.drawImage(decoded.source, 0, 0, width, height);
+    const canvas = drawScaled(decoded.source, decoded.width, decoded.height, width, height);
+    if (!canvas) return file;
 
     const blob = await new Promise<Blob | null>((resolve) =>
       canvas.toBlob(resolve, "image/jpeg", JPEG_QUALITY)
