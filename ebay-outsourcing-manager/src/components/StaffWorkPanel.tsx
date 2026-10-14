@@ -66,7 +66,7 @@ function Step({
   );
 }
 
-// 外注スタッフの作業画面（要件8: STEP1〜7）
+// 外注スタッフの作業画面（要件8: STEP1〜6）
 // 「次にやる作業」が自動で開き、上から順に進めるだけで完了する設計
 export default function StaffWorkPanel({
   product,
@@ -166,13 +166,14 @@ export default function StaffWorkPanel({
     sIdx >= 2,                                        // STEP1 到着
     sIdx >= 2 && !!product.serial_number,             // STEP2 商品確認
     sIdx >= 4,                                        // STEP3 検品
-    (photoCounts["before_packing"] ?? 0) > 0,         // STEP4 梱包前確認
-    sIdx >= 6,                                        // STEP5 梱包
-    sIdx >= 7 && product.weight_kg != null,           // STEP6 サイズ測定
-    product.status === "shipped",                     // STEP7 発送
+    sIdx >= 6,                                        // STEP4 梱包
+    sIdx >= 7 && product.weight_kg != null,           // STEP5 サイズ測定
+    product.status === "shipped",                     // STEP6 発送
   ];
   const currentStep = stepDone.findIndex((d) => !d);
-  const [openStep, setOpenStep] = useState(currentStep === -1 ? 6 : currentStep);
+  const [openStep, setOpenStep] = useState(
+    currentStep === -1 ? stepDone.length - 1 : currentStep
+  );
 
   const allChecked =
     !requiresChecklist ||
@@ -207,12 +208,6 @@ export default function StaffWorkPanel({
         <label className="mb-1 block text-sm font-semibold text-slate-600">到着日</label>
         <input type="date" value={arrivalDate}
           onChange={(e) => setArrivalDate(e.target.value)} className={inputCls} />
-        <div className="mt-3">
-          <p className="mb-1 text-sm font-semibold text-slate-600">
-            外箱の写真（{photoCounts["outer_box"] ?? 0}枚）
-          </p>
-          <PhotoUpload productId={product.id} category="outer_box" />
-        </div>
         <button
           disabled={saving || !arrivalDate}
           onClick={() =>
@@ -248,12 +243,6 @@ export default function StaffWorkPanel({
             </label>
             <input value={serial} onChange={(e) => setSerial(e.target.value)}
               placeholder="本体に記載の番号" className={`${inputCls} font-mono`} />
-          </div>
-          <div>
-            <p className="mb-1 text-sm font-semibold text-slate-600">
-              シリアル番号の写真（{photoCounts["serial"] ?? 0}枚）
-            </p>
-            <PhotoUpload productId={product.id} category="serial" />
           </div>
           <button
             disabled={saving}
@@ -422,19 +411,8 @@ export default function StaffWorkPanel({
         </div>
       )}
 
-      {/* STEP4 梱包前確認 */}
-      <Step {...stepProps(3)} title="STEP4 梱包前確認">
-        <p className="mb-1 text-sm font-semibold text-slate-600">
-          梱包前の写真（{photoCounts["before_packing"] ?? 0}枚）
-        </p>
-        <PhotoUpload productId={product.id} category="before_packing" />
-        <p className="mt-2 text-xs text-slate-400">
-          写真をアップロードするとこのSTEPは完了になります
-        </p>
-      </Step>
-
-      {/* STEP5 梱包 */}
-      <Step {...stepProps(4)} title="STEP5 梱包">
+      {/* STEP4 梱包 */}
+      <Step {...stepProps(3)} title="STEP4 梱包">
         <div className="space-y-3">
           {requiresChecklist && (
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
@@ -466,12 +444,6 @@ export default function StaffWorkPanel({
           )}
           <div>
             <p className="mb-1 text-sm font-semibold text-slate-600">
-              梱包途中の写真（{photoCounts["packing"] ?? 0}枚）
-            </p>
-            <PhotoUpload productId={product.id} category="packing" />
-          </div>
-          <div>
-            <p className="mb-1 text-sm font-semibold text-slate-600">
               梱包完了の写真（{photoCounts["packed"] ?? 0}枚）
             </p>
             <PhotoUpload productId={product.id} category="packed" />
@@ -486,8 +458,8 @@ export default function StaffWorkPanel({
         </div>
       </Step>
 
-      {/* STEP6 サイズ測定 */}
-      <Step {...stepProps(5)} title="STEP6 サイズ測定">
+      {/* STEP5 サイズ測定 */}
+      <Step {...stepProps(4)} title="STEP5 サイズ測定">
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="mb-1 block text-sm font-semibold text-slate-600">重量（kg）</label>
@@ -530,8 +502,8 @@ export default function StaffWorkPanel({
         </button>
       </Step>
 
-      {/* STEP7 発送 */}
-      <Step {...stepProps(6)} title="STEP7 発送">
+      {/* STEP6 発送 */}
+      <Step {...stepProps(5)} title="STEP6 発送">
         <div className="space-y-3">
           <div>
             <label className="mb-1 block text-sm font-semibold text-slate-600">発送会社</label>
@@ -557,12 +529,6 @@ export default function StaffWorkPanel({
             <label className="mb-1 block text-sm font-semibold text-slate-600">発送日</label>
             <input type="date" value={shippedDate}
               onChange={(e) => setShippedDate(e.target.value)} className={inputCls} />
-          </div>
-          <div>
-            <p className="mb-1 text-sm font-semibold text-slate-600">
-              発送ラベル貼付後の写真（{photoCounts["label_attached"] ?? 0}枚）
-            </p>
-            <PhotoUpload productId={product.id} category="label_attached" />
           </div>
 
           {/* 発送前チェック（要件9: 全項目チェックで発送完了ボタンが有効に） */}
