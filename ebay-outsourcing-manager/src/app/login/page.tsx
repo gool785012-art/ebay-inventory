@@ -3,24 +3,44 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import {
+  AUTH_ERROR_MESSAGES, checkAuthHealth, classifyAuthError, formatAuthErrorDetail,
+} from "@/lib/auth-error";
 
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [errorDetail, setErrorDetail] = useState("");
   const [loading, setLoading] = useState(false);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    setErrorDetail("");
     setLoading(true);
 
     const supabase = createClient();
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    let authError: unknown = null;
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      authError = error;
+    } catch (thrown) {
+      authError = thrown; // 設定不備などで例外になった場合も原因を表示する
+    }
 
-    if (error) {
-      setError("メールアドレスまたはパスワードが正しくありません。");
+    if (authError) {
+      // 失敗したときだけ Supabase への接続を確認し、原因を切り分ける
+      const healthStatus = await checkAuthHealth(
+        process.env.NEXT_PUBLIC_SUPABASE_URL,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+      );
+      const detail = classifyAuthError(authError, healthStatus);
+      setError(AUTH_ERROR_MESSAGES[detail.kind]);
+      setErrorDetail(formatAuthErrorDetail(detail));
+      // 調査用の記録（パスワード・トークン・メールアドレスは含めない）
+      console.warn("[login] 認証エラー", detail);
       setLoading(false);
       return;
     }
@@ -68,9 +88,12 @@ export default function LoginPage() {
           />
 
           {error && (
-            <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">
-              {error}
-            </p>
+            <div className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600" role="alert">
+              <p>{error}</p>
+              {errorDetail && (
+                <p className="mt-1 break-all font-mono text-[11px] text-red-400">{errorDetail}</p>
+              )}
+            </div>
           )}
 
           <button
