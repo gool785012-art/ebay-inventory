@@ -24,18 +24,31 @@ export function statusBadgeClass(key: string): string {
 }
 
 // 写真カテゴリー定義
+// retired: true は新規アップロードを廃止したカテゴリー（Storage容量削減のため）。
+// 保存済みの写真を一覧で正しく表示・削除できるよう、表示名は残している。
 export const PHOTO_CATEGORIES = [
-  { key: "outer_box",      label: "外箱" },
+  { key: "outer_box",      label: "外箱",             retired: true },
   { key: "item",           label: "商品本体" },
   { key: "accessory",      label: "付属品" },
-  { key: "serial",         label: "シリアル番号" },
-  { key: "before_packing", label: "梱包前" },
-  { key: "packing",        label: "梱包途中" },
+  { key: "serial",         label: "シリアル番号",     retired: true },
+  { key: "before_packing", label: "梱包前",           retired: true },
+  { key: "packing",        label: "梱包途中",         retired: true },
   { key: "packed",         label: "梱包完了" },
   { key: "label",          label: "発送ラベル" },
-  { key: "label_attached", label: "発送ラベル貼付後" },
+  { key: "label_attached", label: "発送ラベル貼付後", retired: true },
   { key: "other",          label: "その他" },
 ] as const;
+
+/** 新規アップロードを受け付けないカテゴリーか */
+export function isRetiredPhotoCategory(key: string): boolean {
+  const c = PHOTO_CATEGORIES.find((x) => x.key === key);
+  return !!c && "retired" in c && c.retired === true;
+}
+
+/** 新規アップロードで選べるカテゴリー */
+export const UPLOADABLE_PHOTO_CATEGORIES = PHOTO_CATEGORIES.filter(
+  (c) => !isRetiredPhotoCategory(c.key)
+);
 
 // ターンテーブル梱包チェックリスト（要件24）
 export const TURNTABLE_CHECKLIST = [
@@ -48,8 +61,6 @@ export const TURNTABLE_CHECKLIST = [
   { key: "no_movement_in_box",   label: "本体が箱内で動かない" },
   { key: "bottom_reinforced",    label: "底面を十分補強した" },
   { key: "corners_protected",    label: "角を保護した" },
-  { key: "photo_before",         label: "梱包前写真を撮影した" },
-  { key: "photo_during",         label: "梱包途中写真を撮影した" },
   { key: "photo_after",          label: "梱包後写真を撮影した" },
 ] as const;
 
@@ -111,7 +122,6 @@ export const SHIP_CHECKLIST = [
   { key: "ship_item_matches",     label: "ラベルの商品と実際の商品が一致している" },
   { key: "ship_tracking_checked", label: "ラベルの追跡番号を確認した" },
   { key: "ship_label_attached",   label: "ラベルを正しく貼った" },
-  { key: "ship_photo_taken",      label: "発送ラベル貼付後の写真を撮影した" },
 ] as const;
 
 // ─── 集荷管理（Phase 7） ───────────────────────────────────────

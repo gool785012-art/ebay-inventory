@@ -102,7 +102,7 @@ export default function PickupStaff({
           </p>
         )}
         <p className="mt-3 text-xs text-green-700">
-          次にやること: 梱包 → ラベル貼付 → 貼付後の写真 → 集荷時に引き渡し → 発送完了
+          次にやること: 梱包 → ラベル貼付 → 集荷時に引き渡し → 発送完了
         </p>
       </div>
     );

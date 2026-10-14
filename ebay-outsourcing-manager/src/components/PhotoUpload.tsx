@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { PHOTO_CATEGORIES } from "@/lib/constants";
+import { UPLOADABLE_PHOTO_CATEGORIES, isRetiredPhotoCategory } from "@/lib/constants";
 import { resizeImage } from "@/lib/image-resize";
 
 // 写真アップロード部品（スマホのカメラ撮影・複数枚対応、要件9）
@@ -25,6 +25,12 @@ export default function PhotoUpload({
 
   async function handleFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
+    // 廃止したカテゴリーへの新規アップロードは受け付けない（Storage容量削減のため）
+    if (isRetiredPhotoCategory(selectedCategory)) {
+      setError("このカテゴリーの写真アップロードは終了しました。");
+      if (fileRef.current) fileRef.current.value = "";
+      return;
+    }
     setUploading(true);
     setError("");
 
@@ -77,7 +83,7 @@ export default function PhotoUpload({
             onChange={(e) => setSelectedCategory(e.target.value)}
             className="rounded-lg border border-slate-300 px-2 py-2 text-sm"
           >
-            {PHOTO_CATEGORIES.map((c) => (
+            {UPLOADABLE_PHOTO_CATEGORIES.map((c) => (
               <option key={c.key} value={c.key}>
                 {c.label}
               </option>
